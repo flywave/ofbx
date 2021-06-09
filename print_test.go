@@ -8,7 +8,7 @@ import (
 )
 
 func TestPrintScene(t *testing.T) {
-	f, err := os.Open("flex.FBX")
+	f, err := os.Open("./testdata/FBXcs2.fbx")
 	if err != nil {
 		log.Fatal(err)
 	}

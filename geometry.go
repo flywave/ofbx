@@ -151,7 +151,9 @@ func (g *Geometry) stringPrefix(prefix string) string {
 		}
 		s += "\n"
 	}
-	s += g.Skin.stringPrefix(prefix)
+	if g.Skin != nil {
+		s += g.Skin.stringPrefix(prefix)
+	}
 	s += "\n"
 	return s
 }
@@ -297,8 +299,7 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 			tmpI := 0
 			triCt := 0
 			insertIdx := 0
-			for poly := 0; poly < len(tmp); {
-				poly++
+			for poly := 0; poly < len(tmp); poly++ {
 				triCt, tmpI = getTriCountFromPoly(origIndices, tmpI)
 				for i := 0; i < triCt; i++ {
 					geom.Materials[insertIdx] = tmp[poly]
