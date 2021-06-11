@@ -17,5 +17,5 @@ func TestPrintScene(t *testing.T) {
 		log.Fatal(err)
 	}
 	fmt.Println(scene)
-	//fmt.Println(scene.Geometries())
+	fmt.Println(scene.Meshes[0].Materials[0].Textures[0].relativeFilename)
 }
