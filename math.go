@@ -40,6 +40,10 @@ type Matrix struct {
 	m [16]float64 // last 4 are translation
 }
 
+func (mat *Matrix) ToArray() [16]float64 {
+	return mat.m
+}
+
 func matrixFromSlice(fs []float64) (Matrix, error) {
 	if len(fs) != 16 {
 		return Matrix{}, fmt.Errorf("Expected 16 values, got %d", len(fs))
