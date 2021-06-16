@@ -277,6 +277,6 @@ func evalLocalScaling(o Obj, translation, rotation, scaling floatgeom.Point3) Ma
 	return t.Mul(rOff).Mul(rP).Mul(rPre).Mul(r).Mul(rPostInv).Mul(rPInv).Mul(sOff).Mul(sP).Mul(s).Mul(sPInv)
 }
 
-func   GetGlobalMatrix(o Obj) Matrix {
-	return getGlobalMatrix(o)
+func GetGlobalMatrix(o Obj) Matrix {
+	return getGlobalTransform(o)
 }
