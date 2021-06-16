@@ -276,3 +276,7 @@ func evalLocalScaling(o Obj, translation, rotation, scaling floatgeom.Point3) Ma
 	// http://help.autodesk.com/view/FBX/2017/ENU/?guid=__files_GUID_10CDD63C_79C1_4F2D_BB28_AD2BE65A02ED_htm
 	return t.Mul(rOff).Mul(rP).Mul(rPre).Mul(r).Mul(rPostInv).Mul(rPInv).Mul(sOff).Mul(sP).Mul(s).Mul(sPInv)
 }
+
+func   GetGlobalMatrix(o Obj) Matrix {
+	return getGlobalMatrix(o)
+}
