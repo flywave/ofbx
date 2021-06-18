@@ -34,6 +34,11 @@ func (t *Texture) getFileName() *DataView {
 	return t.filename
 }
 
+func (t *Texture) GetFileName() *DataView {
+	return t.filename
+}
+
+
 func (t *Texture) getRelativeFileName() *DataView {
 	return t.relativeFilename
 }
