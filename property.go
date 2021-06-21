@@ -167,7 +167,7 @@ func findChildProperty(element *Element, id string) []*Property {
 
 func resolveProperty(obj Obj, name string) *Element {
 	elems := findChildren(obj.Element(), "Properties70")
-	if elems == nil {
+	if len(elems) == 0 || elems == nil {
 		return nil
 	}
 
