@@ -27,7 +27,7 @@ var vtxDataMapFromStrs = map[string]VertexDataMapping{
 // MaxUvs is the highest number of UVs allowed
 const MaxUvs = 4
 
-//Geometry is the base geometric shape objec that is implemented in forms such as meshes that dictate control point deformations
+// Geometry is the base geometric shape objec that is implemented in forms such as meshes that dictate control point deformations
 type Geometry struct {
 	Object
 	Skin *Skin
@@ -333,7 +333,6 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 			if tmp != nil && len(tmp) > 0 {
 				//uvs = [4]floatgeom.Point2{} //resize(tmpIndices.empty() ? tmp.size() : tmpIndices.size());
 				geom.UVs[uvIdx] = splatVec2(mapping, tmp, tmpIndices, origIndices)
-				remapVec2(&geom.UVs[uvIdx], toOldIndices)
 			}
 		}
 
@@ -368,7 +367,6 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 		}
 		if len(tmp) > 0 {
 			geom.Colors = splatVec4(mapping, tmp, tmpIndices, origIndices)
-			remapVec4(&geom.Colors, toOldIndices)
 		}
 	}
 
@@ -380,7 +378,6 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 		}
 		if len(tmp) > 0 {
 			geom.Normals = splatVec3(mapping, tmp, tmpIndices, origIndices)
-			remapVec3(&geom.Normals, toOldIndices)
 		}
 	}
 

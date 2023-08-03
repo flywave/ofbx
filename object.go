@@ -221,11 +221,13 @@ func getLocalScaling(o Obj) floatgeom.Point3 {
 
 func getGlobalTransform(o Obj) Matrix {
 	parent := getParent(o)
+	lmt := evalLocal(o, getLocalTranslation(o), getLocalRotation(o))
 	if parent == nil {
-		return evalLocal(o, getLocalTranslation(o), getLocalRotation(o))
+		return lmt
 	}
+	mt := getGlobalTransform(parent)
 
-	return getGlobalTransform(parent).Mul(evalLocal(o, getLocalTranslation(o), getLocalRotation(o)))
+	return mt.Mul(lmt)
 }
 
 func getLocalTransform(o Obj) Matrix {

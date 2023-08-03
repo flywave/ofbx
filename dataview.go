@@ -27,6 +27,7 @@ func BufferDataView(buff *bytes.Buffer) *DataView {
 }
 
 func (dv *DataView) String() string {
+	dv.Seek(0, io.SeekStart)
 	ln := dv.Len()
 	data := make([]byte, ln)
 	_, err := dv.Read(data)
@@ -40,6 +41,8 @@ func (dv *DataView) String() string {
 
 func (dv *DataView) touint64() uint64 {
 	var i uint64
+	dv.Seek(0, io.SeekStart)
+
 	err := binary.Read(dv, binary.LittleEndian, &i)
 	if err != nil && err != io.EOF {
 		fmt.Println("binary read failure:", err)
@@ -49,6 +52,7 @@ func (dv *DataView) touint64() uint64 {
 
 func (dv *DataView) toint64() int64 {
 	var i int64
+	dv.Seek(0, io.SeekStart)
 	err := binary.Read(dv, binary.LittleEndian, &i)
 	if err != nil && err != io.EOF {
 		fmt.Println("binary read failure:", err)
@@ -58,6 +62,7 @@ func (dv *DataView) toint64() int64 {
 
 func (dv *DataView) toInt32() int32 {
 	var i int32
+	dv.Seek(0, io.SeekStart)
 	err := binary.Read(dv, binary.LittleEndian, &i)
 	if err != nil && err != io.EOF {
 		fmt.Println("binary read failure:", err)
@@ -67,6 +72,7 @@ func (dv *DataView) toInt32() int32 {
 
 func (dv *DataView) touint32() uint32 {
 	var i uint32
+	dv.Seek(0, io.SeekStart)
 	err := binary.Read(dv, binary.LittleEndian, &i)
 	if err != nil && err != io.EOF {
 		fmt.Println("binary read failure:", err)
@@ -76,6 +82,7 @@ func (dv *DataView) touint32() uint32 {
 
 func (dv *DataView) toDouble() float64 {
 	var i float64
+	dv.Seek(0, io.SeekStart)
 	err := binary.Read(dv, binary.LittleEndian, &i)
 	if err != nil && err != io.EOF {
 		fmt.Println("binary read failure:", err)
@@ -85,6 +92,7 @@ func (dv *DataView) toDouble() float64 {
 
 func (dv *DataView) toFloat() float32 {
 	var i float32
+	dv.Seek(0, io.SeekStart)
 	err := binary.Read(dv, binary.LittleEndian, &i)
 	if err != nil && err != io.EOF {
 		fmt.Println("binary read failure:", err)
@@ -94,6 +102,7 @@ func (dv *DataView) toFloat() float32 {
 
 func (dv *DataView) toBool() bool {
 	var i bool
+	dv.Seek(0, io.SeekStart)
 	err := binary.Read(dv, binary.LittleEndian, &i)
 	if err != nil && err != io.EOF {
 		fmt.Println("binary read failure:", err)

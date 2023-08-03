@@ -1,6 +1,6 @@
 package ofbx
 
-//TextureType determines how a texture be used
+// TextureType determines how a texture be used
 type TextureType int
 
 // Texture type block
@@ -10,7 +10,7 @@ const (
 	TextureCOUNT TextureType = iota
 )
 
-//Texture is a texture file on an object
+// Texture is a texture file on an object
 type Texture struct {
 	Object
 	filename         *DataView
@@ -39,6 +39,10 @@ func (t *Texture) GetFileName() string {
 }
 
 func (t *Texture) getRelativeFileName() *DataView {
+	return t.relativeFilename
+}
+
+func (t *Texture) GetRelativeFileName() *DataView {
 	return t.relativeFilename
 }
 
