@@ -21,7 +21,7 @@ func TestPrintScene(t *testing.T) {
 }
 
 func TestMatrix(t *testing.T) {
-	f, err := os.Open("/home/hj/snap/dukto/16/md/AOI.fbx")
+	f, err := os.Open("/home/hj/snap/dukto/16/md/货车2.fbx")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -30,18 +30,19 @@ func TestMatrix(t *testing.T) {
 		log.Fatal(err)
 	}
 
-	mt := getGlobalTransform(scene.ObjectMap[2281135157232])
-	fmt.Println(mt)
-	mt2 := getGlobalTransform(scene.ObjectMap[2281135157232])
-	fmt.Println(mt2)
-
-	for _, m := range scene.Meshes[12:] {
-		// mt := getLocalTransform(m)
-		// fmt.Println(mt)
-
-		mt2 := getGlobalTransform(m)
-		fmt.Println(mt2)
-
+	for _, m := range scene.Meshes {
+		for _, m := range m.Materials {
+			for _, t := range m.Textures {
+				if t == nil {
+					continue
+				}
+				fmt.Println(t.getFileName())
+			}
+		}
 	}
 
+}
+func TestMatrix2(t *testing.T) {
+	str := []int{1, 2, 3}
+	fmt.Println(str[:2])
 }
