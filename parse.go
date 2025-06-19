@@ -14,7 +14,7 @@ import (
 
 func parseTemplates(root *Element) {
 	defs := findChildren(root, "Definitions")
-	if defs == nil {
+	if len(defs) == 0 {
 		return
 	}
 
@@ -342,7 +342,7 @@ func parseVertexDataVec4(element *Element, name, idxName string) ([]floatgeom.Po
 
 func parseVertexDataInner(element *Element, name, idxName string) ([]int, VertexDataMapping, *Property, error) {
 	dataProp := findChildProperty(element, name)
-	if dataProp == nil {
+	if len(dataProp) == 0 {
 		return nil, 0, nil, errors.New("Invalid data element")
 	}
 	mappingProp := findChildProperty(element, "MappingInformationType")
@@ -538,7 +538,7 @@ func parseConnection(root *Element, scene *Scene) (bool, error) {
 
 func parseTakes(scene *Scene) (bool, error) {
 	takes := findChildren(scene.RootElement, "Takes")
-	if takes == nil {
+	if len(takes) == 0 {
 		return true, nil
 	}
 
@@ -644,7 +644,7 @@ func parseGlobalSettings(root *Element, scene *Scene) {
 func parseObjects(root *Element, scene *Scene) (bool, error) {
 	//fmt.Println("Starting object Parse")
 	objs := findChildren(root, "Objects")
-	if objs == nil {
+	if len(objs) == 0 {
 		return true, nil
 	}
 	scene.RootNode = NewNode(scene, root, ROOT)

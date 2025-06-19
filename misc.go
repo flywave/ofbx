@@ -32,7 +32,7 @@ func resolveVec3Property(object Obj, name string, defaultVal floatgeom.Point3) f
 }
 
 func splatVec2(mapping VertexDataMapping, data []floatgeom.Point2, indices []int, origIndices []int) (out []floatgeom.Point2) {
-	if mapping == ByPolygonVertex {
+	if mapping == ByPolygonVertex || mapping == ByPolygon {
 		if len(indices) == 0 {
 			out = make([]floatgeom.Point2, len(data))
 			copy(out, data)
@@ -63,8 +63,6 @@ func splatVec2(mapping VertexDataMapping, data []floatgeom.Point2, indices []int
 				out[i] = floatgeom.Point2{}
 			}
 		}
-	} else {
-		panic("oh no")
 	}
 	return out
 }
