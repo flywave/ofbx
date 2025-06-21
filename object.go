@@ -47,6 +47,10 @@ func (o *Object) Name() string {
 	return o.name
 }
 
+func (o *Object) Type() Type {
+	return NOTYPE
+}
+
 // Element gets the Element on the Object
 func (o *Object) Element() *Element {
 	return o.element
@@ -180,7 +184,7 @@ func getParent(o Obj) Obj {
 }
 
 func getRotationOrder(o Obj) RotationOrder {
-	return RotationOrder(resolveEnumProperty(o, "RotationOrder", int(EulerXYZ)))
+	return RotationOrder(resolveEnumProperty(o, "RotationOrder", int(EulerZYX)))
 }
 
 func getRotationOffset(o Obj) floatgeom.Point3 {
@@ -251,11 +255,17 @@ func evalLocalScaling(o Obj, translation, rotation, scaling floatgeom.Point3) Ma
 	t := makeIdentity()
 	setTranslation(translation, &t)
 
+	// 关键修复：使用相同的旋转顺序处理所有旋转
 	r := rotationOrder.rotationMatrix(rotation)
-	pr := getPreRotation(o)
-	rPre := EulerXYZ.rotationMatrix(pr)
+
+	// 使用相同的旋转顺序处理preRotation
+	pr := getPreRotation(o) // 度数转弧度
+	rPre := rotationOrder.rotationMatrix(pr)
+
+	// 使用相同的旋转顺序处理postRotation
 	psr := getPostRotation(o)
-	rPostInv := EulerZYX.rotationMatrix(psr.MulConst(-1))
+	rPost := rotationOrder.rotationMatrix(psr)
+	rPostInv := rPost.Transposed() // 逆矩阵
 
 	rOff := makeIdentity()
 	setTranslation(getRotationOffset(o), &rOff)
@@ -275,8 +285,19 @@ func evalLocalScaling(o Obj, translation, rotation, scaling floatgeom.Point3) Ma
 	sPInv := makeIdentity()
 	setTranslation(scalingPivot.MulConst(-1), &sPInv)
 
-	// http://help.autodesk.com/view/FBX/2017/ENU/?guid=__files_GUID_10CDD63C_79C1_4F2D_BB28_AD2BE65A02ED_htm
-	return t.Mul(rOff).Mul(rP).Mul(rPre).Mul(r).Mul(rPostInv).Mul(rPInv).Mul(sOff).Mul(sP).Mul(s).Mul(sPInv)
+	// 修正后的变换顺序 - 与JS版本一致:
+	// T * Roff * Rp * Rpre * R * RpostInv * RpInv * Soff * Sp * S * SpInv
+	return t.
+		Mul(rOff).
+		Mul(rP).
+		Mul(rPre).
+		Mul(r).
+		Mul(rPostInv).
+		Mul(rPInv).
+		Mul(sOff).
+		Mul(sP).
+		Mul(s).
+		Mul(sPInv)
 }
 
 func GetGlobalMatrix(o Obj) Matrix {

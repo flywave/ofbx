@@ -102,6 +102,14 @@ func Load(r io.Reader) (*Scene, error) {
 		return nil, err
 	}
 	parseGlobalSettings(root, s)
+	s.PostProcess() // 添加后处理调用
 
 	return s, nil
+}
+
+// 在Scene结构体中添加
+func (s *Scene) PostProcess() {
+	for _, m := range s.Meshes {
+		m.applyLocalTransform()
+	}
 }

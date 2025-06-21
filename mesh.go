@@ -2,6 +2,8 @@ package ofbx
 
 import (
 	"fmt"
+
+	"github.com/oakmound/oak/v2/alg/floatgeom"
 )
 
 // Mesh is a geometry made of polygon
@@ -54,10 +56,30 @@ func (m *Mesh) Type() Type {
 	return MESH
 }
 
+// 修改后的全局矩阵计算
+func (m *Mesh) GetGlobalMatrix() Matrix {
+	return getGlobalTransform(&m.Object)
+}
+
 func (m *Mesh) GetGeometricMatrix() Matrix {
 	translation := getLocalTranslation(m)
 	rotation := getLocalRotation(m)
 	scale := getLocalScaling(m)
+
+	scaleMtx := makeIdentity()
+	scaleMtx.m[0] = scale.X()
+	scaleMtx.m[5] = scale.Y()
+	scaleMtx.m[10] = scale.Z()
+	mtx := EulerXYZ.rotationMatrix(rotation)
+	setTranslation(translation, &mtx)
+
+	return scaleMtx.Mul(mtx)
+}
+
+func (m *Mesh) getGeometricMatrix() Matrix {
+	translation := resolveVec3Property(m, "GeometricTranslation", floatgeom.Point3{0, 0, 0})
+	rotation := resolveVec3Property(m, "GeometricRotation", floatgeom.Point3{0, 0, 0})
+	scale := resolveVec3Property(m, "GeometricScaling", floatgeom.Point3{1, 1, 1})
 
 	scaleMtx := makeIdentity()
 	scaleMtx.m[0] = scale.X()
@@ -81,4 +103,9 @@ func (m *Mesh) stringPrefix(prefix string) string {
 		s += mat.stringPrefix(prefix + "\t")
 	}
 	return s
+}
+
+func (m *Mesh) applyLocalTransform() {
+	mat := m.getGeometricMatrix()
+	m.Geometry.applyMatrix(&mat)
 }

@@ -225,6 +225,7 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 	if element.Properties == nil {
 		return nil, errors.New("Geometry invalid")
 	}
+
 	geom := NewGeometry(scene, element)
 
 	verticesProp := findChildProperty(element, "Vertices")
@@ -386,4 +387,14 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 	geom.Vertices = vertices
 
 	return geom, nil
+}
+
+func (g *Geometry) applyMatrix(m *Matrix) {
+	for i := 0; i < len(g.Vertices); i++ {
+		g.Vertices[i] = m.MulPosition(g.Vertices[i])
+	}
+
+	for i := 0; i < len(g.Normals); i++ {
+		g.Normals[i] = m.MulDirection(g.Normals[i])
+	}
 }

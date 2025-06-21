@@ -1,6 +1,8 @@
 package ofbx
 
 import (
+	"math"
+
 	"github.com/oakmound/oak/v2/alg"
 	"github.com/oakmound/oak/v2/alg/floatgeom"
 )
@@ -20,25 +22,115 @@ const (
 )
 
 func (o RotationOrder) rotationMatrix(euler floatgeom.Point3) Matrix {
-	rx := rotationX(euler.X() * alg.DegToRad)
-	ry := rotationY(euler.Y() * alg.DegToRad)
-	rz := rotationZ(euler.Z() * alg.DegToRad)
+	x, y, z := euler.X()*alg.DegToRad, euler.Y()*alg.DegToRad, euler.Z()*alg.DegToRad
+	a, b := math.Cos(x), math.Sin(x)
+	c, d := math.Cos(y), math.Sin(y)
+	e, f := math.Cos(z), math.Sin(z)
+
+	te := makeIdentity()
+
 	switch o {
-	default:
-	case SphericXYZ:
-		panic("This should not happen")
 	case EulerXYZ:
-		return rz.Mul(ry).Mul(rx)
-	case EulerXZY:
-		return ry.Mul(rz).Mul(rx)
+		te.m[0] = c * e
+		te.m[4] = -c * f
+		te.m[8] = d
+
+		te.m[1] = a*f + b*e*d
+		te.m[5] = a*e - b*f*d
+		te.m[9] = -b * c
+
+		te.m[2] = b*f - a*e*d
+		te.m[6] = b*e + a*f*d
+		te.m[10] = a * c
+
 	case EulerYXZ:
-		return rz.Mul(rx).Mul(ry)
-	case EulerYZX:
-		return rx.Mul(rz).Mul(ry)
+		ce, cf := c*e, c*f
+		de, df := d*e, d*f
+
+		te.m[0] = ce + df*b
+		te.m[4] = de*b - cf
+		te.m[8] = a * d
+
+		te.m[1] = a * f
+		te.m[5] = a * e
+		te.m[9] = -b
+
+		te.m[2] = cf*b - de
+		te.m[6] = df + ce*b
+		te.m[10] = a * c
+
 	case EulerZXY:
-		return ry.Mul(rx).Mul(rz)
+		ce, cf := c*e, c*f
+		de, df := d*e, d*f
+
+		te.m[0] = ce - df*b
+		te.m[4] = -a * f
+		te.m[8] = de + cf*b
+
+		te.m[1] = cf + de*b
+		te.m[5] = a * e
+		te.m[9] = df - ce*b
+
+		te.m[2] = -a * d
+		te.m[6] = b
+		te.m[10] = a * c
+
 	case EulerZYX:
-		return rx.Mul(ry).Mul(rz)
+		ae, af := a*e, a*f
+		be, bf := b*e, b*f
+
+		te.m[0] = c * e
+		te.m[4] = be*d - af
+		te.m[8] = ae*d + bf
+
+		te.m[1] = c * f
+		te.m[5] = bf*d + ae
+		te.m[9] = af*d - be
+
+		te.m[2] = -d
+		te.m[6] = b * c
+		te.m[10] = a * c
+
+	case EulerYZX:
+		ac, ad := a*c, a*d
+		bc, bd := b*c, b*d
+
+		te.m[0] = c * e
+		te.m[4] = bd - ac*f
+		te.m[8] = bc*f + ad
+
+		te.m[1] = f
+		te.m[5] = a * e
+		te.m[9] = -b * e
+
+		te.m[2] = -d * e
+		te.m[6] = ad*f + bc
+		te.m[10] = ac - bd*f
+
+	case EulerXZY:
+		ac, ad := a*c, a*d
+		bc, bd := b*c, b*d
+
+		te.m[0] = c * e
+		te.m[4] = -f
+		te.m[8] = d * e
+
+		te.m[1] = ac*f + bd
+		te.m[5] = a * e
+		te.m[9] = ad*f - bc
+
+		te.m[2] = bc*f - ad
+		te.m[6] = b * e
+		te.m[10] = bd*f + ac
+
+	default:
+		panic("Unsupported rotation order")
 	}
-	panic("This shouldn't happen either")
+
+	// 最后三列保持单位矩阵
+	te.m[3], te.m[7], te.m[11] = 0, 0, 0
+	te.m[12], te.m[13], te.m[14] = 0, 0, 0
+	te.m[15] = 1
+
+	return te
 }

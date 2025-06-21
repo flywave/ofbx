@@ -43,7 +43,14 @@ type Matrix struct {
 func (mat *Matrix) ToArray() [16]float64 {
 	return mat.m
 }
-
+func (m Matrix) Transposed() Matrix {
+	return Matrix{m: [16]float64{
+		m.m[0], m.m[4], m.m[8], m.m[12],
+		m.m[1], m.m[5], m.m[9], m.m[13],
+		m.m[2], m.m[6], m.m[10], m.m[14],
+		m.m[3], m.m[7], m.m[11], m.m[15],
+	}}
+}
 func matrixFromSlice(fs []float64) (Matrix, error) {
 	if len(fs) != 16 {
 		return Matrix{}, fmt.Errorf("Expected 16 values, got %d", len(fs))
@@ -51,6 +58,57 @@ func matrixFromSlice(fs []float64) (Matrix, error) {
 	var a [16]float64
 	copy(a[:], fs)
 	return Matrix{a}, nil
+}
+
+// 添加缩放矩阵生成函数
+func scalingMatrix(scale floatgeom.Point3) Matrix {
+	m := makeIdentity()
+	m.m[0] = scale.X()
+	m.m[5] = scale.Y()
+	m.m[10] = scale.Z()
+	return m
+}
+
+// 添加平移矩阵生成函数
+func translationMatrix(t floatgeom.Point3) Matrix {
+	m := makeIdentity()
+	m.m[12] = t.X()
+	m.m[13] = t.Y()
+	m.m[14] = t.Z()
+	return m
+}
+
+// 添加矩阵变换方法
+func (m Matrix) MulPosition(v floatgeom.Point3) floatgeom.Point3 {
+	// 齐次坐标变换 (x,y,z,1)
+	x := v[0]*m.m[0] + v[1]*m.m[4] + v[2]*m.m[8] + m.m[12]
+	y := v[0]*m.m[1] + v[1]*m.m[5] + v[2]*m.m[9] + m.m[13]
+	z := v[0]*m.m[2] + v[1]*m.m[6] + v[2]*m.m[10] + m.m[14]
+	return floatgeom.Point3{x, y, z}
+}
+
+func (m Matrix) MulDirection(v floatgeom.Point3) floatgeom.Point3 {
+	// 方向变换忽略平移 (x,y,z,0)
+	x := v[0]*m.m[0] + v[1]*m.m[4] + v[2]*m.m[8]
+	y := v[0]*m.m[1] + v[1]*m.m[5] + v[2]*m.m[9]
+	z := v[0]*m.m[2] + v[1]*m.m[6] + v[2]*m.m[10]
+	return floatgeom.Point3{x, y, z}.Normalize()
+}
+
+func (m Matrix) RemoveScale() Matrix {
+	// 提取旋转分量并重新标准化
+	rot := Matrix{m.m}
+	sx := math.Sqrt(m.m[0]*m.m[0] + m.m[1]*m.m[1] + m.m[2]*m.m[2])
+	sy := math.Sqrt(m.m[4]*m.m[4] + m.m[5]*m.m[5] + m.m[6]*m.m[6])
+	sz := math.Sqrt(m.m[8]*m.m[8] + m.m[9]*m.m[9] + m.m[10]*m.m[10])
+
+	// 去除缩放因子
+	for i := 0; i < 4; i++ {
+		rot.m[i] /= sx
+		rot.m[i+4] /= sy
+		rot.m[i+8] /= sz
+	}
+	return rot
 }
 
 // Quat probably can bve removed
