@@ -61,21 +61,6 @@ func (m *Mesh) GetGlobalMatrix() Matrix {
 	return getGlobalTransform(&m.Object)
 }
 
-func (m *Mesh) GetGeometricMatrix() Matrix {
-	translation := getLocalTranslation(m)
-	rotation := getLocalRotation(m)
-	scale := getLocalScaling(m)
-
-	scaleMtx := makeIdentity()
-	scaleMtx.m[0] = scale.X()
-	scaleMtx.m[5] = scale.Y()
-	scaleMtx.m[10] = scale.Z()
-	mtx := EulerXYZ.rotationMatrix(rotation)
-	setTranslation(translation, &mtx)
-
-	return scaleMtx.Mul(mtx)
-}
-
 func (m *Mesh) getGeometricMatrix() Matrix {
 	translation := resolveVec3Property(m, "GeometricTranslation", floatgeom.Point3{0, 0, 0})
 	rotation := resolveVec3Property(m, "GeometricRotation", floatgeom.Point3{0, 0, 0})
