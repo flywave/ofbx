@@ -53,7 +53,7 @@ func (m Matrix) Transposed() Matrix {
 }
 func matrixFromSlice(fs []float64) (Matrix, error) {
 	if len(fs) != 16 {
-		return Matrix{}, fmt.Errorf("Expected 16 values, got %d", len(fs))
+		return Matrix{}, fmt.Errorf("expected 16 values, got %d", len(fs))
 	}
 	var a [16]float64
 	copy(a[:], fs)
@@ -61,7 +61,7 @@ func matrixFromSlice(fs []float64) (Matrix, error) {
 }
 
 // 添加缩放矩阵生成函数
-func scalingMatrix(scale floatgeom.Point3) Matrix {
+func ScalingMatrix(scale floatgeom.Point3) Matrix {
 	m := makeIdentity()
 	m.m[0] = scale.X()
 	m.m[5] = scale.Y()
@@ -70,7 +70,7 @@ func scalingMatrix(scale floatgeom.Point3) Matrix {
 }
 
 // 添加平移矩阵生成函数
-func translationMatrix(t floatgeom.Point3) Matrix {
+func TranslationMatrix(t floatgeom.Point3) Matrix {
 	m := makeIdentity()
 	m.m[12] = t.X()
 	m.m[13] = t.Y()
@@ -113,7 +113,7 @@ func (m Matrix) RemoveScale() Matrix {
 
 // Quat probably can bve removed
 type Quat struct {
-	X, Y, Z, w float64
+	X, Y, Z, W float64
 }
 
 // Mul multiplies the values of two matricies together and returns the output
@@ -131,6 +131,15 @@ func (m1 Matrix) Mul(m2 Matrix) Matrix {
 	return Matrix{res}
 }
 
+func (m Matrix) isZero() bool {
+	for i := 0; i < 16; i++ {
+		if m.m[i] != 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func setTranslation(v floatgeom.Point3, m *Matrix) {
 	m.m[12] = v.X()
 	m.m[13] = v.Y()
@@ -141,7 +150,7 @@ func makeIdentity() Matrix {
 	return Matrix{[16]float64{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}}
 }
 
-func rotationX(angle float64) Matrix {
+func RotationX(angle float64) Matrix {
 	m2 := makeIdentity()
 	//radian
 	c := math.Cos(angle)
@@ -153,7 +162,7 @@ func rotationX(angle float64) Matrix {
 	return m2
 }
 
-func rotationY(angle float64) Matrix {
+func RotationY(angle float64) Matrix {
 	m2 := makeIdentity()
 	//radian
 	c := math.Cos(angle)
@@ -165,7 +174,7 @@ func rotationY(angle float64) Matrix {
 	return m2
 }
 
-func rotationZ(angle float64) Matrix {
+func RotationZ(angle float64) Matrix {
 	m2 := makeIdentity()
 	//radian
 	c := math.Cos(angle)

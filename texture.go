@@ -30,16 +30,8 @@ func (t *Texture) Type() Type {
 	return TEXTURE
 }
 
-func (t *Texture) getFileName() *DataView {
-	return t.filename
-}
-
 func (t *Texture) GetFileName() string {
 	return t.filename.String()
-}
-
-func (t *Texture) getRelativeFileName() *DataView {
-	return t.relativeFilename
 }
 
 func (t *Texture) GetRelativeFileName() *DataView {

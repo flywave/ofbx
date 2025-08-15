@@ -279,10 +279,8 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 		mappingProp := findChildProperty(layerMaterialElements[0], "MappingInformationType")
 		referenceProp := findChildProperty(layerMaterialElements[0], "ReferenceInformationType")
 		if len(mappingProp) == 0 || len(referenceProp) == 0 {
-			return nil, errors.New("Invalid LayerElementMaterial")
+			return nil, errors.New("invalid LayerElementMaterial")
 		}
-		var err error
-		tmp := make([]int, 0)
 
 		if mappingProp[0].value.String() == "ByPolygon" &&
 			referenceProp[0].value.String() == "IndexToDirect" {
@@ -293,10 +291,10 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 
 			indiciesProp := findChildProperty(layerMaterialElements[0], "Materials")
 			if indiciesProp == nil {
-				return nil, errors.New("Invalid LayerElementMaterial")
+				return nil, errors.New("invalid LayerElementMaterial")
 			}
 
-			tmp, err = parseBinaryArrayInt(indiciesProp[0])
+			tmp, err := parseBinaryArrayInt(indiciesProp[0])
 			if err != nil {
 				return nil, err
 			}
@@ -313,7 +311,7 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 			}
 		} else {
 			if mappingProp[0].value.String() != "AllSame" {
-				return nil, errors.New("Mapping not supported")
+				return nil, errors.New("mapping not supported")
 			}
 		}
 	}
@@ -331,7 +329,7 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 			if err != nil {
 				return nil, err
 			}
-			if tmp != nil && len(tmp) > 0 {
+			if len(tmp) > 0 {
 				//uvs = [4]floatgeom.Point2{} //resize(tmpIndices.empty() ? tmp.size() : tmpIndices.size());
 				geom.UVs[uvIdx] = splatVec2(mapping, tmp, tmpIndices, origIndices)
 			}
@@ -354,9 +352,9 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 		if err != nil {
 			return nil, err
 		}
-		if tmp != nil && len(tmp) > 0 {
+		if len(tmp) > 0 {
 			geom.Tangents = splatVec3(mapping, tmp, tmpIndices, origIndices)
-			remapVec3(&geom.Tangents, toOldIndices)
+			RemapVec3(&geom.Tangents, toOldIndices)
 		}
 	}
 

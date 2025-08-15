@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (c *Cursor) isEndLine() bool {
+func (c *Cursor) IsEndLine() bool {
 	by, err := c.Peek(1)
 	if err != nil {
 		//fmt.Println(err)
@@ -16,7 +16,7 @@ func (c *Cursor) isEndLine() bool {
 	return by[0] == '\n'
 }
 
-//TODO: Make a isspace for bytes not unicode
+// TODO: Make a isspace for bytes not unicode
 func (c *Cursor) skipInsignificantWhitespaces() error {
 	for {
 		by, _, err := c.ReadRune()
@@ -98,17 +98,17 @@ func (c *Cursor) readTextProperty() (*Property, error) {
 		prop.Type = 'S'
 		val := bytes.NewBuffer([]byte{})
 		for {
-			r, _, err := c.ReadRune()
-			if err != nil {
-				if err == io.EOF {
+			rr, _, cerr := c.ReadRune()
+			if cerr != nil {
+				if cerr == io.EOF {
 					break //?
 				}
-				return nil, err
+				return nil, cerr
 			}
-			if r == '"' {
+			if rr == '"' {
 				break
 			}
-			val.WriteRune(r)
+			val.WriteRune(rr)
 		}
 		prop.value = BufferDataView(val)
 		//fmt.Println("Quote end", prop.value.String())
@@ -123,17 +123,17 @@ func (c *Cursor) readTextProperty() (*Property, error) {
 		}
 		val := bytes.NewBuffer([]byte{})
 		for {
-			r, _, err := c.ReadRune()
-			if err != nil {
-				if err == io.EOF {
+			rr, _, cerr := c.ReadRune()
+			if cerr != nil {
+				if cerr == io.EOF {
 					break //?
 				}
-				return nil, err
+				return nil, cerr
 			}
-			if !unicode.IsDigit(r) {
+			if !unicode.IsDigit(rr) {
 				break
 			}
-			val.WriteRune(r)
+			val.WriteRune(rr)
 		}
 
 		r, _, err = c.ReadRune()
@@ -142,29 +142,32 @@ func (c *Cursor) readTextProperty() (*Property, error) {
 			prop.Type = 'D'
 			val.WriteRune(r)
 			for {
-				r, _, err := c.ReadRune()
-				if err != nil {
-					if err == io.EOF {
+				rr, _, cerr := c.ReadRune()
+				if cerr != nil {
+					if cerr == io.EOF {
 						break //?
 					}
-					return nil, err
+					return nil, cerr
 				}
-				if !unicode.IsDigit(r) {
+				if !unicode.IsDigit(rr) {
 					break
 				}
-				val.WriteRune(r)
+				val.WriteRune(rr)
 			}
 			r, _, err = c.ReadRune()
 			if err == nil && r == 'e' || r == 'E' {
 				// 10.5e-013
 				val.WriteRune(r)
 				r, _, err = c.ReadRune()
+				if err != nil {
+					return nil, err
+				}
 				if r != '-' || !unicode.IsDigit(r) {
 					return nil, errors.New("malformed floating point with exponent")
 				}
 				val.WriteRune(r)
 				for {
-					r, _, err := c.ReadRune()
+					rr, _, err := c.ReadRune()
 					if err != nil {
 						if err == io.EOF {
 							//fmt.Println("EOF?")
@@ -172,10 +175,10 @@ func (c *Cursor) readTextProperty() (*Property, error) {
 						}
 						return nil, err
 					}
-					if !unicode.IsDigit(r) {
+					if !unicode.IsDigit(rr) {
 						break
 					}
-					val.WriteRune(r)
+					val.WriteRune(rr)
 				}
 			}
 		}
@@ -240,7 +243,7 @@ func (c *Cursor) readTextProperty() (*Property, error) {
 	return nil, errors.New("TODO")
 }
 
-func (c *Cursor) readTextElement() (*Element, error) {
+func (c *Cursor) ReadTextElement() (*Element, error) {
 	//fmt.Println("Read text token start")
 	id, err := c.readTextToken()
 	if err != nil {
@@ -266,19 +269,19 @@ func (c *Cursor) readTextElement() (*Element, error) {
 	//fmt.Println("Looping over properties")
 	for {
 		//fmt.Println("Property loop")
-		by, err := c.Peek(1)
-		if err != nil {
-			if err == io.EOF {
+		by, cerr := c.Peek(1)
+		if cerr != nil {
+			if cerr == io.EOF {
 				break
 			}
-			return nil, err
+			return nil, cerr
 		}
 		if by[0] == '\n' || by[0] == '{' {
 			break
 		}
-		prop, err := c.readTextProperty()
-		if err != nil {
-			return nil, err
+		prop, cerr := c.readTextProperty()
+		if cerr != nil {
+			return nil, cerr
 		}
 		by, err = c.Peek(1)
 		if err != io.EOF {
@@ -313,7 +316,7 @@ func (c *Cursor) readTextElement() (*Element, error) {
 				c.Discard(1)
 				break
 			}
-			child, err := c.readTextElement()
+			child, err := c.ReadTextElement()
 			if err != nil {
 				return nil, err
 			}
@@ -325,43 +328,4 @@ func (c *Cursor) readTextElement() (*Element, error) {
 		c.UnreadRune()
 	}
 	return element, nil
-}
-
-//Todo: make this matter
-func tokenizeText(r io.Reader) (*Element, error) {
-	return nil, nil
-	/*
-		cr := NewCountReader(r)
-		r2 := bufio.NewReader(cr)
-		cursor := Cursor{r2, cr}
-		root := &Element{}
-		element := &root.child
-		_, err := cursor.Peek(1)
-		fmt.Println("Looping tokenizeText")
-		for ; err != io.EOF; _, err = cursor.Peek(1) {
-			v, _, err := cursor.ReadRune()
-			if err != nil {
-				return nil, err
-			}
-			fmt.Println("Read rune from tokenizeText", v)
-			if v == ';' || v == '\r' || v == '\n' {
-				fmt.Println("Skipping line")
-				cursor.skipLine()
-			} else {
-				fmt.Println("Reading text element")
-				child, err := cursor.readTextElement()
-				fmt.Println("Read text element")
-				if err != nil {
-					fmt.Println("Read text element error", err)
-					return nil, err
-				}
-				*element = child
-				if element == nil {
-					return root, nil
-				}
-				element = &(*element).sibling
-			}
-		}
-		return root, nil
-	*/
 }

@@ -71,7 +71,7 @@ func (s *Scene) Geometries() []*Geometry {
 	return out
 }
 
-func (s *Scene) getTakeInfo(name string) *TakeInfo {
+func (s *Scene) GetTakeInfo(name string) *TakeInfo {
 	for _, info := range s.TakeInfos {
 		if info.name.String() == name {
 			return &info

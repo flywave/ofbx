@@ -20,7 +20,7 @@ func (as *AnimationStack) Type() Type {
 }
 
 // getLayer returns a requested animationlayer from the stack. TODO: Verify that we can fully remove this.
-func (as *AnimationStack) getLayer(index int) *AnimationLayer {
+func (as *AnimationStack) GetLayer(index int) *AnimationLayer {
 	recv := resolveObjectLinkIndex(as, index)
 	if recv == nil {
 		return nil
@@ -87,7 +87,7 @@ func (as *AnimationLayer) Type() Type {
 }
 
 // getCuurveNode gets the first curvenode with the given bone and property
-func (as *AnimationLayer) getCurveNode(bone Obj, property string) *AnimationCurveNode {
+func (as *AnimationLayer) GetCurveNode(bone Obj, property string) *AnimationCurveNode {
 	for _, node := range as.CurveNodes {
 		if node.BoneLinkProp == property && node.Bone == bone {
 			return node

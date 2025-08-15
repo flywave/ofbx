@@ -189,6 +189,9 @@ func (c *Cursor) readElement(version uint16) (*Element, error) {
 	element.Properties = make([]*Property, propCt)
 	for i := uint64(0); i < propCt; i++ {
 		element.Properties[i], err = c.readProperty()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if uint64(c.ReadSoFar()) >= endOffset {

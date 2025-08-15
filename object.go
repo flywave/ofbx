@@ -234,7 +234,7 @@ func getGlobalTransform(o Obj) Matrix {
 	return mt.Mul(lmt)
 }
 
-func getLocalTransform(o Obj) Matrix {
+func GetLocalTransform(o Obj) Matrix {
 	return evalLocalScaling(o, getLocalTranslation(o), getLocalRotation(o), getLocalScaling(o))
 }
 

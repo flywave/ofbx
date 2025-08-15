@@ -70,7 +70,7 @@ func (dv *DataView) toInt32() int32 {
 	return i
 }
 
-func (dv *DataView) touint32() uint32 {
+func (dv *DataView) toUint32() uint32 {
 	var i uint32
 	dv.Seek(0, io.SeekStart)
 	err := binary.Read(dv, binary.LittleEndian, &i)

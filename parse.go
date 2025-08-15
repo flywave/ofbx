@@ -5,14 +5,13 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"time"
 
 	"github.com/oakmound/oak/v2/alg/floatgeom"
 	"github.com/pkg/errors"
 )
 
-func parseTemplates(root *Element) {
+func ParseTemplates(root *Element) {
 	defs := findChildren(root, "Definitions")
 	if len(defs) == 0 {
 		return
@@ -23,7 +22,7 @@ func parseTemplates(root *Element) {
 	for _, def := range defs {
 		if def.ID.String() == "ObjectType" {
 			prop1 := def.getProperty(0).value
-			prop1Data, err := ioutil.ReadAll(prop1)
+			prop1Data, err := io.ReadAll(prop1)
 			if err != nil && err != io.EOF {
 				//fmt.Println(err)
 				continue
@@ -32,7 +31,7 @@ func parseTemplates(root *Element) {
 			for _, subdef := range subdefs {
 				if subdef.ID.String() == "PropertyTemplate" {
 					prop2 := subdef.getProperty(0).value
-					prop2Data, err := ioutil.ReadAll(prop2)
+					prop2Data, err := io.ReadAll(prop2)
 					if err != nil && err != io.EOF {
 						//fmt.Println(err)
 						continue
@@ -128,9 +127,10 @@ func parseArrayRawInt(property *Property) ([]int, error) {
 	if property.Type == 'd' || property.Type == 'f' {
 		return nil, errors.New("Invalid type, expected i or l")
 	}
-	if property.Encoding == 0 {
+	switch property.Encoding {
+	case 0:
 		return parseArrayRawIntEnd(property.value, property.Count, property.Type.Size()), nil
-	} else if property.Encoding == 1 {
+	case 1:
 		zr, err := zlib.NewReader(&property.value.Reader)
 		if err != nil {
 			return nil, errors.Wrap(err, "New Reader failed")
@@ -164,9 +164,10 @@ func parseArrayRawInt64(property *Property) ([]int64, error) {
 	if property.Type == 'd' || property.Type == 'f' {
 		return nil, errors.New("Invalid type, expected i or l")
 	}
-	if property.Encoding == 0 {
+	switch property.Encoding {
+	case 0:
 		return parseArrayRawInt64End(property.value, property.Count, property.Type.Size()), nil
-	} else if property.Encoding == 1 {
+	case 1:
 		zr, err := zlib.NewReader(&property.value.Reader)
 		if err != nil {
 			return nil, errors.Wrap(err, "New Reader failed")
@@ -196,9 +197,10 @@ func parseArrayRawFloat32(property *Property) ([]float32, error) {
 	if property.Type == 'i' || property.Type == 'l' {
 		return nil, errors.New("Invalid type, expected d or f")
 	}
-	if property.Encoding == 0 {
+	switch property.Encoding {
+	case 0:
 		return parseArrayRawFloat32End(property.value, property.Count, property.Type.Size()), nil
-	} else if property.Encoding == 1 {
+	case 1:
 		zr, err := zlib.NewReader(&property.value.Reader)
 		if err != nil {
 			return nil, errors.Wrap(err, "New Reader failed")
@@ -228,9 +230,10 @@ func parseArrayRawFloat64(property *Property) ([]float64, error) {
 	if property.Type == 'i' || property.Type == 'l' {
 		return nil, errors.New("Invalid type, expected d or f")
 	}
-	if property.Encoding == 0 {
+	switch property.Encoding {
+	case 0:
 		return parseArrayRawFloat64End(property.value, property.Count, property.Type.Size()), nil
-	} else if property.Encoding == 1 {
+	case 1:
 		zr, err := zlib.NewReader(&property.value.Reader)
 		if err != nil {
 			return nil, errors.Wrap(err, "New Reader failed")
@@ -368,6 +371,7 @@ func parseVertexDataInner(element *Element, name, idxName string) ([]int, Vertex
 				}
 			} else {
 				// just use indicies in order.
+				idxs = nil
 			}
 		} else if referenceProp[0].value.String() != "Direct" {
 			return nil, 0, nil, errors.New("Invalid properties")
@@ -479,9 +483,9 @@ func parseAnimationCurve(scene *Scene, element *Element) (*AnimationCurve, error
 		}
 	}
 	if times := findSingleChildProperty(element, "KeyTime"); times != nil {
-		intTimes, err := times.getValuesInt64()
-		if err != nil {
-			return nil, errors.Wrap(err, "Invalid animation curve: times error")
+		intTimes, cerr := times.getValuesInt64()
+		if cerr != nil {
+			return nil, errors.Wrap(cerr, "Invalid animation curve: times error")
 		}
 		curve.Times = make([]time.Duration, len(intTimes))
 		for i, v := range intTimes {
@@ -621,9 +625,9 @@ func parseGlobalSettings(root *Element, scene *Scene) {
 				case "OriginalUpAxisSign":
 					scene.Settings.OriginalUpAxisSign = int(value.toInt32())
 				case "UnitScaleFactor":
-					scene.Settings.UnitScaleFactor = value.toFloat()
+					scene.Settings.UnitScaleFactor = float32(value.toDouble())
 				case "OriginalUnitScaleFactor":
-					scene.Settings.OriginalUnitScaleFactor = value.toFloat()
+					scene.Settings.OriginalUnitScaleFactor = float32(value.toDouble())
 				case "TimeSpanStart":
 					scene.Settings.TimeSpanStart = value.touint64()
 				case "TimeSpanStop":
@@ -692,12 +696,13 @@ func parseObjects(root *Element, scene *Scene) (bool, error) {
 			classProp := elem.getProperty(2)
 			if classProp != nil {
 				v := classProp.value.String()
-				if v == "Cluster" {
+				switch v {
+				case "Cluster":
 					obj, err = parseCluster(scene, elem)
 					if err != nil {
 						return false, err
 					}
-				} else if v == "Skin" {
+				case "Skin":
 					obj = NewSkin(scene, elem)
 				}
 			}
@@ -710,19 +715,20 @@ func parseObjects(root *Element, scene *Scene) (bool, error) {
 			classProp := elem.getProperty(2)
 			if classProp != nil {
 				v := classProp.value.String()
-				if v == "Mesh" {
+				switch v {
+				case "Mesh":
 					obj, err = parseMesh(scene, elem)
 					if err == nil {
 						mesh := obj.(*Mesh)
 						scene.Meshes = append(scene.Meshes, mesh)
 						obj = mesh
 					}
-				} else if v == "LimbNode" {
+				case "LimbNode":
 					obj, err = parseLimbNode(scene, elem)
 					if err != nil {
 						return false, err
 					}
-				} else if v == "Null" || v == "Root" {
+				case "Null", "Root":
 					obj = NewNode(scene, elem, NULL_NODE)
 				}
 			}
@@ -787,9 +793,10 @@ func parseObjects(root *Element, scene *Scene) (bool, error) {
 			mat := parent.(*Material)
 			if ctyp == TEXTURE {
 				ttyp := TextureCOUNT
-				if con.property == "NormalMap" {
+				switch con.property {
+				case "NormalMap":
 					ttyp = NORMAL
-				} else if con.property == "DiffuseColor" {
+				case "DiffuseColor":
 					ttyp = DIFFUSE
 				}
 				if ttyp == TextureCOUNT {

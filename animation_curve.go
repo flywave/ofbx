@@ -92,12 +92,12 @@ func NewAnimationCurveNode(s *Scene, e *Element) *AnimationCurveNode {
 	return &acn
 }
 
-//Type returns ANIMATION_CURVE_NODE
+// Type returns ANIMATION_CURVE_NODE
 func (acn *AnimationCurveNode) Type() Type {
 	return ANIMATION_CURVE_NODE
 }
 
-func (acn *AnimationCurveNode) getNodeLocalTransform(t float64) floatgeom.Point3 {
+func (acn *AnimationCurveNode) GetNodeLocalTransform(t float64) floatgeom.Point3 {
 	fbxTime := fbxTimetoStdTime(secondsToFbxTime(t))
 
 	getCoord := func(curve *Curve, fbxTime time.Duration) float32 {
