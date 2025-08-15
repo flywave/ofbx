@@ -21,6 +21,28 @@ const (
 	SphericXYZ RotationOrder = iota // Currently unsupported. Treated as EulerXYZ.
 )
 
+// String returns the string representation of RotationOrder
+func (o RotationOrder) String() string {
+	switch o {
+	case EulerXYZ:
+		return "EulerXYZ"
+	case EulerXZY:
+		return "EulerXZY"
+	case EulerYZX:
+		return "EulerYZX"
+	case EulerYXZ:
+		return "EulerYXZ"
+	case EulerZXY:
+		return "EulerZXY"
+	case EulerZYX:
+		return "EulerZYX"
+	case SphericXYZ:
+		return "SphericXYZ"
+	default:
+		return "Unknown"
+	}
+}
+
 func (o RotationOrder) rotationMatrix(euler floatgeom.Point3) Matrix {
 	x, y, z := euler.X()*alg.DegToRad, euler.Y()*alg.DegToRad, euler.Z()*alg.DegToRad
 	a, b := math.Cos(x), math.Sin(x)
@@ -122,6 +144,20 @@ func (o RotationOrder) rotationMatrix(euler floatgeom.Point3) Matrix {
 		te.m[2] = bc*f - ad
 		te.m[6] = b * e
 		te.m[10] = bd*f + ac
+
+	case SphericXYZ:
+		// SphericXYZ目前不支持，当作EulerXYZ处理
+		te.m[0] = c * e
+		te.m[4] = -c * f
+		te.m[8] = d
+
+		te.m[1] = a*f + b*e*d
+		te.m[5] = a*e - b*f*d
+		te.m[9] = -b * c
+
+		te.m[2] = b*f - a*e*d
+		te.m[6] = b*e + a*f*d
+		te.m[10] = a * c
 
 	default:
 		panic("Unsupported rotation order")

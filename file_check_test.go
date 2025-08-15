@@ -15,7 +15,7 @@ func TestIsBinary(t *testing.T) {
 		binary bool
 	}
 	testCases := []testCase{
-		{"flex.fbx", true},
+		{"testdata/cube.fbx", true},
 	}
 	for _, tc := range testCases {
 		r, err := os.Open(tc.file)

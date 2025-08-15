@@ -166,3 +166,37 @@ func TestLoadIntegration(t *testing.T) {
 	assert.NotNil(t, scene.Connections)
 	assert.NotNil(t, scene.TakeInfos)
 }
+
+// TestGetTakeInfoWithValidData 测试GetTakeInfo方法有有效数据的情况
+func TestGetTakeInfoWithValidData(t *testing.T) {
+	scene := &Scene{
+		TakeInfos: []TakeInfo{
+			{name: &DataView{Reader: *bytes.NewReader([]byte("TestAnimation"))}},
+		},
+	}
+
+	info := scene.GetTakeInfo("TestAnimation")
+	assert.NotNil(t, info)
+	assert.Equal(t, "TestAnimation", info.name.String())
+
+	info = scene.GetTakeInfo("NonExistent")
+	assert.Nil(t, info)
+}
+
+// TestSceneGeometriesWithData 测试Geometries方法有数据的情况
+func TestSceneGeometriesWithData(t *testing.T) {
+	scene := &Scene{
+		ObjectMap: make(map[uint64]Obj),
+	}
+
+	// 添加一个模拟的几何体对象
+	mockGeometry := &Geometry{}
+	mockElement := &Element{ID: &DataView{Reader: *bytes.NewReader([]byte("Geometry"))}}
+	mockGeometry.element = mockElement
+
+	scene.ObjectMap[1] = mockGeometry
+
+	geometries := scene.Geometries()
+	assert.NotNil(t, geometries)
+	assert.Len(t, geometries, 1)
+}
