@@ -46,6 +46,9 @@ var (
 type encoder struct {
 	version    uint32
 	bigOffsets bool // version >= 7500 uses 64-bit record offsets
+	// sizes caches each element's encoded record size so a single
+	// precomputation pass feeds the sequential writer
+	sizes map[*Element]int
 }
 
 // Encode writes the element tree rooted at root as a binary FBX document.
@@ -63,7 +66,7 @@ func Encode(w io.Writer, root *Element, version uint32) error {
 		return errors.New("ofbx: cannot encode nil element tree")
 	}
 
-	enc := &encoder{version: version, bigOffsets: version >= FBXVersion7500}
+	enc := &encoder{version: version, bigOffsets: version >= FBXVersion7500, sizes: map[*Element]int{}}
 
 	var buf bytes.Buffer
 	// 21 byte magic, then 0x1a 0x00, then u32 version.
@@ -74,7 +77,12 @@ func Encode(w io.Writer, root *Element, version uint32) error {
 	writeUint32(&buf, int(version))
 
 	for _, child := range root.Children {
-		if _, err := enc.writeNode(&buf, child, buf.Len()); err != nil {
+		size, err := enc.computeSizes(child, buf.Len())
+		if err != nil {
+			return err
+		}
+		enc.sizes[child] = size
+		if err := enc.writeNode(&buf, child, buf.Len()); err != nil {
 			return err
 		}
 	}
@@ -114,12 +122,11 @@ func (enc *encoder) writeOffset(buf *bytes.Buffer, v int) {
 	writeUint32(buf, v)
 }
 
-// writeNode serializes one node record starting at the absolute offset start
-// and returns the number of bytes written. Properties and children are first
-// serialized into scratch buffers so the record header (including the
-// endOffset, which must be absolute) can be computed before anything is
-// appended to buf.
-func (enc *encoder) writeNode(buf *bytes.Buffer, e *Element, start int) (int, error) {
+// computeSizes computes and caches the encoded size of every node in the
+// subtree rooted at e (validating properties on the way), returning the
+// root's own size. One pass feeds the sequential writer; buffering subtrees
+// per node instead would be quadratic on deeply nested trees.
+func (enc *encoder) computeSizes(e *Element, start int) (int, error) {
 	if e == nil || e.ID == nil {
 		return 0, errors.New("ofbx: cannot encode element without ID")
 	}
@@ -128,43 +135,122 @@ func (enc *encoder) writeNode(buf *bytes.Buffer, e *Element, start int) (int, er
 		return 0, errors.Errorf("ofbx: element name %q exceeds 255 bytes", name)
 	}
 
-	props := &bytes.Buffer{}
+	propsLen := 0
 	for _, p := range e.Properties {
-		if err := enc.writeProperty(props, p); err != nil {
+		n, err := enc.propertySize(p)
+		if err != nil {
 			return 0, errors.Wrapf(err, "encoding property of element %q", name)
 		}
+		propsLen += n
 	}
 
-	kids := &bytes.Buffer{}
-	off := start + enc.headerSize(len(name)) + props.Len()
+	kidsLen := 0
+	off := start + enc.headerSize(len(name)) + propsLen
 	for _, c := range e.Children {
-		n, err := enc.writeNode(kids, c, off)
+		n, err := enc.computeSizes(c, off)
 		if err != nil {
 			return 0, err
 		}
+		enc.sizes[c] = n
 		off += n
+		kidsLen += n
 	}
 
-	// nodes that carry children are terminated by a NULL record
-	end := off
+	size := enc.headerSize(len(name)) + propsLen + kidsLen
 	if len(e.Children) > 0 {
-		end += enc.sentinelSize()
+		size += enc.sentinelSize()
 	}
-	if !enc.bigOffsets && end > math.MaxUint32 {
+	if size < 0 {
+		return 0, errors.Errorf("ofbx: element %q size overflows", name)
+	}
+	if !enc.bigOffsets && start+size > math.MaxUint32 {
 		return 0, errors.Errorf("ofbx: node %q ends past 4GB; write with version >= 7500 (64-bit offsets)", name)
+	}
+	return size, nil
+}
+
+// writeNode serializes one node record starting at the absolute offset start,
+// using the sizes from the computeSizes pass.
+func (enc *encoder) writeNode(buf *bytes.Buffer, e *Element, start int) error {
+	size, ok := enc.sizes[e]
+	if !ok {
+		return errors.Errorf("ofbx: internal error: size not computed for element %q", e.ID.String())
+	}
+	end := start + size
+
+	propsLen := 0
+	for _, p := range e.Properties {
+		n, err := enc.propertySize(p)
+		if err != nil {
+			return errors.Wrapf(err, "encoding property of element %q", e.ID.String())
+		}
+		propsLen += n
 	}
 
 	enc.writeOffset(buf, end)
 	enc.writeOffset(buf, len(e.Properties))
-	enc.writeOffset(buf, props.Len())
-	buf.WriteByte(byte(len(name)))
-	buf.WriteString(name)
-	buf.Write(props.Bytes())
-	buf.Write(kids.Bytes())
+	enc.writeOffset(buf, propsLen)
+	buf.WriteByte(byte(len(e.ID.String())))
+	buf.WriteString(e.ID.String())
+	for _, p := range e.Properties {
+		if err := enc.writeProperty(buf, p); err != nil {
+			return errors.Wrapf(err, "encoding property of element %q", e.ID.String())
+		}
+	}
+
+	// nodes that carry children are terminated by a NULL record
+	off := start + enc.headerSize(len(e.ID.String())) + propsLen
+	for _, c := range e.Children {
+		if err := enc.writeNode(buf, c, off); err != nil {
+			return err
+		}
+		off += enc.sizes[c]
+	}
 	if len(e.Children) > 0 {
 		enc.writeZeros(buf, enc.sentinelSize())
 	}
-	return end - start, nil
+	return nil
+}
+
+// arrayInfo validates an array property and returns its header fields.
+func arrayInfo(p *Property, dataLen int) (count, encoding int, err error) {
+	count = p.Count
+	if count == 0 && dataLen > 0 {
+		// tolerate hand-built properties without a count
+		count = dataLen / p.Type.Size()
+	}
+	if p.Encoding == 0 && count*p.Type.Size() != dataLen {
+		return 0, 0, errors.Errorf("ofbx: uncompressed array %q holds %d bytes for %d elements of size %d",
+			string(p.Type), dataLen, count, p.Type.Size())
+	}
+	if p.Encoding > 1 {
+		return 0, 0, errors.Errorf("ofbx: invalid array encoding %d", p.Encoding)
+	}
+	return count, int(p.Encoding), nil
+}
+
+func (enc *encoder) propertySize(p *Property) (int, error) {
+	if p == nil || p.value == nil {
+		return 0, errors.New("ofbx: property without value")
+	}
+	dataLen := p.valueLen()
+	switch p.Type {
+	case STRING, RAWSTRING: // 'S', 'R'
+		return 1 + 4 + dataLen, nil
+	case BOOL, INT16, INTEGER, FLOAT, DOUBLE, LONG: // 'C','Y','I','F','D','L'
+		if dataLen != p.Type.Size() {
+			return 0, errors.Errorf("ofbx: scalar property %q payload is %d bytes, want %d",
+				string(p.Type), dataLen, p.Type.Size())
+		}
+		return 1 + dataLen, nil
+	case ArrayDOUBLE, ArrayFLOAT, ArrayINT, ArrayLONG, ArrayBOOL, ArrayBYTE: // 'd','f','i','l','b','c'
+		if _, _, err := arrayInfo(p, dataLen); err != nil {
+			return 0, err
+		}
+		return 1 + 12 + dataLen, nil
+	default:
+		return 0, errors.Errorf("ofbx: unsupported property type %q", string(p.Type))
+	}
 }
 
 func (enc *encoder) writeProperty(buf *bytes.Buffer, p *Property) error {
@@ -185,20 +271,12 @@ func (enc *encoder) writeProperty(buf *bytes.Buffer, p *Property) error {
 		}
 		buf.Write(data)
 	case ArrayDOUBLE, ArrayFLOAT, ArrayINT, ArrayLONG, ArrayBOOL, ArrayBYTE: // 'd','f','i','l','b','c'
-		count := p.Count
-		if count == 0 && len(data) > 0 {
-			// tolerate hand-built properties without a count
-			count = len(data) / p.Type.Size()
-		}
-		if p.Encoding == 0 && count*p.Type.Size() != len(data) {
-			return errors.Errorf("ofbx: uncompressed array %q holds %d bytes for %d elements of size %d",
-				string(p.Type), len(data), count, p.Type.Size())
-		}
-		if p.Encoding > 1 {
-			return errors.Errorf("ofbx: invalid array encoding %d", p.Encoding)
+		count, encoding, err := arrayInfo(p, len(data))
+		if err != nil {
+			return err
 		}
 		writeUint32(buf, count)
-		writeUint32(buf, int(p.Encoding))
+		writeUint32(buf, encoding)
 		writeUint32(buf, len(data))
 		buf.Write(data)
 	default:
@@ -251,4 +329,18 @@ func (p *Property) rawBytes() []byte {
 	}
 	p.value.Seek(0, io.SeekStart)
 	return data
+}
+
+// valueLen is the property payload's total length regardless of the
+// DataView's current read position (reads during parsing leave the cursor at
+// the end, which would make Len() report zero).
+func (p *Property) valueLen() int {
+	if p.value == nil {
+		return 0
+	}
+	pos, err := p.value.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return 0
+	}
+	return p.value.Len() + int(pos)
 }
