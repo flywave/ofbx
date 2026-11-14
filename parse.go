@@ -617,8 +617,8 @@ func parseConnection(root *Element, scene *Scene) (bool, error) {
 			return false, errors.New("Invalid connection")
 		}
 		var c Connection
-		c.from = prop1.value.touint64()
-		c.to = prop2.value.touint64()
+		c.from = uint64(propInt(prop1))
+		c.to = uint64(propInt(prop2))
 		if prop0.value.String() == "OO" {
 			c.typ = ObjectConn
 		} else if prop0.value.String() == "OP" {
@@ -755,7 +755,7 @@ func parseObjects(root *Element, scene *Scene) (bool, error) {
 		if !isLong(elem.getProperty(0)) {
 			return false, errors.New("Invalid")
 		}
-		id := elem.getProperty(0).value.touint64()
+		id := uint64(propInt(elem.getProperty(0)))
 
 		var obj Obj
 		var err error

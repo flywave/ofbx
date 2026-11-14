@@ -1,6 +1,7 @@
 package ofbx
 
 import (
+	"encoding/base64"
 	"fmt"
 	"strconv"
 )
@@ -57,13 +58,32 @@ func parseVideo(scene *Scene, element *Element) *Video {
 	if p := findSingleChildProperty(element, "RelativeFilename"); p != nil {
 		v.RelativeFilename = p.value.String()
 	}
-	if p := findSingleChildProperty(element, "Content"); p != nil {
-		switch p.Type {
-		case RAWSTRING:
-			v.Content = p.rawBytes()
-		case ArrayBYTE:
-			if b, err := parseArrayRawBytes(p); err == nil {
-				v.Content = b
+	if contentEl := element.Child("Content"); contentEl != nil {
+		// binary files: one raw/byte-array property. ASCII files
+		// (Autodesk): an empty placeholder followed by a base64 string
+		for _, p := range contentEl.Properties {
+			switch p.Type {
+			case RAWSTRING:
+				v.Content = p.rawBytes()
+			case ArrayBYTE:
+				if b, err := parseArrayRawBytes(p); err == nil {
+					v.Content = b
+				}
+			case STRING:
+				if s := p.value.String(); s != "" {
+					if b, err := base64.StdEncoding.DecodeString(s); err == nil {
+						v.Content = b
+					}
+				}
+			}
+		}
+		// normalize the element to the canonical binary shape (one raw
+		// property): the ASCII placeholder+base64 form does not survive
+		// binary re-encoding through third-party importers
+		if len(v.Content) > 0 || len(contentEl.Properties) > 1 {
+			contentEl.Properties = nil
+			if len(v.Content) > 0 {
+				contentEl.AddProperty(NewRawProperty(v.Content))
 			}
 		}
 	}

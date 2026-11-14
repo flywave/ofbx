@@ -318,7 +318,7 @@ func (d *Document) SetNormals(m *Mesh, normals []Point3) error {
 	if err != nil {
 		return err
 	}
-	layer := geomEl.AddChildElement("LayerElementNormal", NewInt64Property(0))
+	layer := geomEl.AddChildElement("LayerElementNormal", NewInt32Property(0))
 	layer.AddChildElement("Version", NewInt32Property(101))
 	layer.AddChildElement("Name", NewStringProperty(""))
 	layer.AddChildElement("MappingInformationType", NewStringProperty("ByPolygonVertex"))
@@ -348,7 +348,7 @@ func (d *Document) SetUVs(m *Mesh, set int, uvs []Point2) error {
 	if err != nil {
 		return err
 	}
-	layer := geomEl.AddChildElement("LayerElementUV", NewInt64Property(int64(set)))
+	layer := geomEl.AddChildElement("LayerElementUV", NewInt32Property(int32(set)))
 	layer.AddChildElement("Version", NewInt32Property(101))
 	layer.AddChildElement("Name", NewStringProperty("UVMap"))
 	layer.AddChildElement("MappingInformationType", NewStringProperty("ByPolygonVertex"))
@@ -388,7 +388,7 @@ func (d *Document) SetUVsWithIndex(m *Mesh, set int, uvs []Point2, uvIndex []int
 	if err != nil {
 		return err
 	}
-	layer := geomEl.AddChildElement("LayerElementUV", NewInt64Property(int64(set)))
+	layer := geomEl.AddChildElement("LayerElementUV", NewInt32Property(int32(set)))
 	layer.AddChildElement("Version", NewInt32Property(101))
 	layer.AddChildElement("Name", NewStringProperty("UVMap"))
 	layer.AddChildElement("MappingInformationType", NewStringProperty("ByPolygonVertex"))
@@ -412,7 +412,7 @@ func (d *Document) SetNormalsByVertex(m *Mesh, normals []Point3) error {
 	if err != nil {
 		return err
 	}
-	layer := geomEl.AddChildElement("LayerElementNormal", NewInt64Property(0))
+	layer := geomEl.AddChildElement("LayerElementNormal", NewInt32Property(0))
 	layer.AddChildElement("Version", NewInt32Property(101))
 	layer.AddChildElement("Name", NewStringProperty(""))
 	layer.AddChildElement("MappingInformationType", NewStringProperty("ByVertice"))
@@ -440,7 +440,7 @@ func (d *Document) SetVertexColors(m *Mesh, colors []Point4) error {
 	if err != nil {
 		return err
 	}
-	layer := geomEl.AddChildElement("LayerElementColor", NewInt64Property(0))
+	layer := geomEl.AddChildElement("LayerElementColor", NewInt32Property(0))
 	layer.AddChildElement("Version", NewInt32Property(101))
 	layer.AddChildElement("Name", NewStringProperty(""))
 	layer.AddChildElement("MappingInformationType", NewStringProperty("ByPolygonVertex"))
@@ -475,7 +475,7 @@ func (d *Document) SetMaterialIndices(m *Mesh, mapping string, indices []int32) 
 	if err != nil {
 		return err
 	}
-	layer := geomEl.AddChildElement("LayerElementMaterial", NewInt64Property(0))
+	layer := geomEl.AddChildElement("LayerElementMaterial", NewInt32Property(0))
 	layer.AddChildElement("Version", NewInt32Property(101))
 	layer.AddChildElement("Name", NewStringProperty(""))
 	layer.AddChildElement("MappingInformationType", NewStringProperty(mapping))
@@ -490,7 +490,7 @@ func (d *Document) SetMaterialIndices(m *Mesh, mapping string, indices []int32) 
 func (d *Document) addLayerEntry(geomEl *Element, typ string) {
 	layer0 := geomEl.Child("Layer")
 	if layer0 == nil {
-		layer0 = geomEl.AddChildElement("Layer", NewInt64Property(0))
+		layer0 = geomEl.AddChildElement("Layer", NewInt32Property(0))
 		layer0.AddChildElement("Version", NewInt32Property(100))
 	}
 	entry := layer0.AddChildElement("LayerElement")

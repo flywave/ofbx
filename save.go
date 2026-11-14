@@ -72,7 +72,7 @@ func SaveScene(scene *Scene, w io.Writer, opts ...DocOption) error {
 			continue
 		}
 		if p := objEl.getProperty(0); p != nil && isLong(p) {
-			kept[p.value.touint64()] = true
+			kept[uint64(propInt(p))] = true
 		}
 		doc.objs.AddChild(objEl)
 		doc.countType(typeName)
@@ -85,8 +85,8 @@ func SaveScene(scene *Scene, w io.Writer, opts ...DocOption) error {
 			if len(props) < 3 || !isString(props[0]) || !isLong(props[1]) || !isLong(props[2]) {
 				continue
 			}
-			from := props[1].value.touint64()
-			to := props[2].value.touint64()
+			from := uint64(propInt(props[1]))
+			to := uint64(propInt(props[2]))
 			// keep connections whose both endpoints are kept; "to" may be the
 			// scene root (0)
 			if !kept[from] {

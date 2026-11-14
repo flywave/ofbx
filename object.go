@@ -1,8 +1,6 @@
 package ofbx
 
-import (
-	"io"
-)
+import ()
 
 // Object is the top level general class in fbx
 type Object struct {
@@ -156,9 +154,7 @@ func resolveObjectLinkReverse(o Obj, typ Type) Obj {
 	}
 	var id uint64
 	if prop := o.Element().getProperty(0); prop != nil {
-		rdr := prop.value
-		rdr.Seek(0, io.SeekStart)
-		id = rdr.touint64()
+		id = uint64(propInt(prop))
 	}
 	for _, conn := range o.Scene().Connections {
 		//fmt.Println("Connection iterated", id, conn.from, conn.to)

@@ -144,6 +144,10 @@ func setTranslation(v Point3, m *Matrix) {
 	m.m[14] = v.Z()
 }
 
+// IdentityMatrix returns the 4x4 identity, the public spelling of
+// makeIdentity for API users building bind poses.
+func IdentityMatrix() Matrix { return makeIdentity() }
+
 func makeIdentity() Matrix {
 	return Matrix{[16]float64{1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1}}
 }

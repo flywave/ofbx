@@ -36,7 +36,7 @@ FBXHeaderExtension:  {
 	require.NotNil(t, header)
 	versionEl := header.Child("Version")
 	require.NotNil(t, versionEl)
-	assert.Equal(t, int64(7400), versionEl.Properties[0].value.toint64())
+	assert.Equal(t, 7400, propInt(versionEl.Properties[0]))
 }
 
 // TestLoadSceneStructure 测试场景结构是否正确初始化

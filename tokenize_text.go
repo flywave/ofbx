@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"strconv"
 	"strings"
 	"unicode"
@@ -39,18 +40,9 @@ func (c *Cursor) skipLine() {
 	c.skipInsignificantWhitespaces()
 }
 
+// skipWhitespaces advances to the next significant token character,
+// treating whitespace (newlines included) and ';'-comment lines as noise.
 func (c *Cursor) skipWhitespaces() error {
-	for {
-		by, _, err := c.ReadRune()
-		if err != nil {
-			return err
-		}
-		if unicode.IsSpace(by) {
-			continue
-		}
-		c.UnreadRune()
-		break
-	}
 	for {
 		by, _, err := c.ReadRune()
 		if err != nil {
@@ -60,10 +52,12 @@ func (c *Cursor) skipWhitespaces() error {
 			c.skipLine()
 			continue
 		}
+		if unicode.IsSpace(by) {
+			continue
+		}
 		c.UnreadRune()
-		break
+		return nil
 	}
-	return nil
 }
 
 func isTextTokenChar(c rune) bool {
@@ -148,7 +142,33 @@ func (c *Cursor) readTextProperty() (*Property, error) {
 					val.WriteByte('"')
 				case '\\':
 					val.WriteByte('\\')
+				case 'x':
+					// hex escape \xHH for control bytes (our own writer's
+					// convention). Autodesk writes unescaped backslashes, so
+					// only commit to the escape when two hex digits follow.
+					h1, _, e1 := c.ReadRune()
+					if e1 != nil {
+						return nil, e1
+					}
+					h2, _, e2 := c.ReadRune()
+					if e2 != nil {
+						return nil, e2
+					}
+					hi, ok1 := hexDigit(byte(h1))
+					lo, ok2 := hexDigit(byte(h2))
+					if !ok1 || !ok2 {
+						// not an escape after all: literal backslash + x
+						val.WriteByte('\\')
+						val.WriteByte('x')
+						val.WriteRune(h1)
+						val.WriteRune(h2)
+						continue
+					}
+					val.WriteByte(hi<<4 | lo)
 				default:
+					// Autodesk does not escape backslashes in paths:
+					// keep them verbatim
+					val.WriteByte('\\')
 					val.WriteRune(esc)
 				}
 				continue
@@ -175,6 +195,12 @@ func (c *Cursor) readTextProperty() (*Property, error) {
 		return prop, nil
 	}
 
+	if r == ',' {
+		// Autodesk writes `Content: ,"<base64>"`: the bare comma is an
+		// empty placeholder property (an int 0 in binary files; some
+		// third-party importers reject empty byte arrays)
+		return NewInt32Property(0), nil
+	}
 	if unicode.IsDigit(r) || r == '-' || r == '+' {
 		c.UnreadRune()
 		return c.readTextNumber()
@@ -265,6 +291,11 @@ func (c *Cursor) readTextNumber() (*Property, error) {
 	i, perr := strconv.ParseInt(text, 10, 64)
 	if perr != nil {
 		return nil, fmt.Errorf("ofbx: bad integer %q"+": %w", text, perr)
+	}
+	// FBX SDK convention: ints within 32-bit range serialize as 'I'; ids
+	// (restored to 'L' by fixupIDs below) and KTime values exceed it
+	if i >= math.MinInt32 && i <= math.MaxInt32 {
+		return NewInt32Property(int32(i)), nil
 	}
 	return NewInt64Property(i), nil
 }
@@ -420,8 +451,16 @@ func (c *Cursor) ReadTextElement() (*Element, error) {
 			}
 			return nil, cerr
 		}
-		if by[0] == '\n' || by[0] == '{' {
+		if by[0] == '{' {
 			break
+		}
+		if by[0] == '\n' {
+			// a newline ends the property list unless a value continues on
+			// the next line (Autodesk writes `Content: ,` + a base64
+			// string on the following line)
+			if !c.textPropsContinue() {
+				break
+			}
 		}
 		prop, cerr := c.readTextProperty()
 		if cerr != nil {
@@ -441,6 +480,9 @@ func (c *Cursor) ReadTextElement() (*Element, error) {
 
 		element.Properties = append(element.Properties, prop)
 	}
+
+	fixupIDs(element)
+	rematerializeP(element)
 
 	r, _, err = c.ReadRune()
 	if err != nil {
@@ -494,4 +536,125 @@ func (c *Cursor) skipSpacesAndComments() {
 			return
 		}
 	}
+}
+
+// textPropsContinue reports whether a property value continues after the
+// line break at the cursor, consuming the intervening whitespace when it
+// does. Peek never advances, so a negative answer leaves the cursor on the
+// newline itself.
+func (c *Cursor) textPropsContinue() bool {
+	for k := 2; ; k++ {
+		ahead, err := c.Peek(k)
+		if err != nil || len(ahead) < k {
+			return false
+		}
+		last := ahead[k-1]
+		switch {
+		case unicode.IsSpace(rune(last)):
+			continue // keep looking past the whitespace
+		case last == '"' || last == '*' || last == ',' || last == '-' || last == '+' || unicode.IsDigit(rune(last)):
+			// value continues: consume the peeked whitespace (but not last)
+			for i := 0; i < k-1; i++ {
+				c.Discard(1)
+			}
+			return true
+		default:
+			return false
+		}
+	}
+}
+
+// hexDigit decodes one hex digit.
+func hexDigit(c byte) (byte, bool) {
+	switch {
+	case c >= '0' && c <= '9':
+		return c - '0', true
+	case c >= 'a' && c <= 'f':
+		return c - 'a' + 10, true
+	case c >= 'A' && c <= 'F':
+		return c - 'A' + 10, true
+	}
+	return 0, false
+}
+
+// fixupIDs restores 64-bit 'L' materialization for object and connection
+// ids: importers parse ids through 64-bit-only readers while every other
+// int is expected as 'I'.
+func fixupIDs(element *Element) {
+	widen := func(p *Property) *Property {
+		if p != nil && p.Type == INTEGER {
+			return NewInt64Property(int64(p.ValueI64()))
+		}
+		return p
+	}
+	switch element.IDString() {
+	case "C":
+		// C: "OO", from, to[, property]
+		if len(element.Properties) >= 3 {
+			element.Properties[1] = widen(element.Properties[1])
+			element.Properties[2] = widen(element.Properties[2])
+		}
+	default:
+		if textObjectElements[element.IDString()] && len(element.Properties) > 0 {
+			// first property of an object element is its id
+			element.Properties[0] = widen(element.Properties[0])
+		}
+	}
+}
+
+// rematerializeP rewrites the value properties of a "P" entry according to
+// its type descriptor: importers parse P values with width-specific
+// readers, and the ASCII dialect loses that information (an integer
+// spelled "1" may be an int or a double).
+func rematerializeP(element *Element) {
+	if element.IDString() != "P" || len(element.Properties) < 5 {
+		return
+	}
+	if element.Properties[0].Type != STRING || element.Properties[1].Type != STRING {
+		return
+	}
+	pt := element.Properties[1].value.String()
+	var narrow, ktime bool
+	switch pt {
+	case "int", "enum", "bool", "Visibility":
+		narrow = true // 'I' within 32 bits
+	case "KTime", "Time", "DateTime":
+		ktime = true // keep 'L' materialization
+	default:
+		// every other numeric-ish type ("double", "Number", "Vector3D",
+		// "Lcl Translation", "Color", ...) reads as F/D in importers,
+		// including integer literals like a plain 0
+		narrow = false
+	}
+	widenFloat := !narrow && !ktime
+	for i := 4; i < len(element.Properties); i++ {
+		p := element.Properties[i]
+		switch {
+		case narrow && p.Type == LONG:
+			if v := p.ValueI64(); v >= math.MinInt32 && v <= math.MaxInt32 {
+				element.Properties[i] = NewInt32Property(int32(v))
+			}
+		case widenFloat && (p.Type == LONG || p.Type == INTEGER):
+			element.Properties[i] = NewFloat64Property(p.ValueF64())
+		case ktime && p.Type == INTEGER:
+			// KTime values parse as 64-bit in importers
+			element.Properties[i] = NewInt64Property(p.ValueI64())
+		}
+	}
+}
+
+// textObjectElements lists Objects-section element names whose first
+// property is an object id.
+var textObjectElements = map[string]bool{
+	"Geometry":           true,
+	"Material":           true,
+	"Model":              true,
+	"Texture":            true,
+	"Video":              true,
+	"NodeAttribute":      true,
+	"Deformer":           true,
+	"AnimationStack":     true,
+	"AnimationLayer":     true,
+	"AnimationCurve":     true,
+	"AnimationCurveNode": true,
 }

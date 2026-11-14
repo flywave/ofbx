@@ -229,19 +229,19 @@ func appendRawLayers(el *Element, layers []rawLayer) error {
 		switch l.kind {
 		case layerNormal:
 			entryType, dataName, idxName = "LayerElementNormal", "Normals", "NormalsIndex"
-			layerEl = el.AddChildElement(entryType, NewInt64Property(0))
+			layerEl = el.AddChildElement(entryType, NewInt32Property(0))
 		case layerTangent:
 			entryType, dataName, idxName = "LayerElementTangents", "Tangents", "TangentsIndex"
-			layerEl = el.AddChildElement(entryType, NewInt64Property(0))
+			layerEl = el.AddChildElement(entryType, NewInt32Property(0))
 		case layerUV:
 			entryType, dataName, idxName = "LayerElementUV", "UV", "UVIndex"
-			layerEl = el.AddChildElement(entryType, NewInt64Property(int64(l.set)))
+			layerEl = el.AddChildElement(entryType, NewInt32Property(int32(l.set)))
 		case layerColor:
 			entryType, dataName, idxName = "LayerElementColor", "Colors", "ColorIndex"
-			layerEl = el.AddChildElement(entryType, NewInt64Property(0))
+			layerEl = el.AddChildElement(entryType, NewInt32Property(0))
 		case layerMaterial:
 			entryType = "LayerElementMaterial"
-			layerEl = el.AddChildElement(entryType, NewInt64Property(0))
+			layerEl = el.AddChildElement(entryType, NewInt32Property(0))
 		default:
 			continue
 		}
@@ -292,7 +292,7 @@ func appendRawLayers(el *Element, layers []rawLayer) error {
 func addLayerEntryStatic(geomEl *Element, typ string) {
 	layer0 := geomEl.Child("Layer")
 	if layer0 == nil {
-		layer0 = geomEl.AddChildElement("Layer", NewInt64Property(0))
+		layer0 = geomEl.AddChildElement("Layer", NewInt32Property(0))
 		layer0.AddChildElement("Version", NewInt32Property(100))
 	}
 	entry := layer0.AddChildElement("LayerElement")
@@ -313,7 +313,7 @@ func appendProcessedLayers(el *Element, g *Geometry) error {
 		if err != nil {
 			return err
 		}
-		layerEl := el.AddChildElement("LayerElementNormal", NewInt64Property(0))
+		layerEl := el.AddChildElement("LayerElementNormal", NewInt32Property(0))
 		layerEl.AddChildElement("Version", NewInt32Property(101))
 		layerEl.AddChildElement("Name", NewStringProperty(""))
 		layerEl.AddChildElement("MappingInformationType", NewStringProperty("ByPolygonVertex"))

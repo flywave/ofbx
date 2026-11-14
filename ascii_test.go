@@ -77,8 +77,8 @@ Root:  {
 	num := el.Child("Num")
 	require.NotNil(t, num)
 	require.Len(t, num.Properties, 4)
-	assert.Equal(t, int64(42), num.Properties[0].value.toint64())
-	assert.Equal(t, int64(-7), num.Properties[1].value.toint64())
+	assert.Equal(t, 42, propInt(num.Properties[0]))
+	assert.Equal(t, -7, propInt(num.Properties[1]))
 	assert.Equal(t, 3.5, num.Properties[2].value.toDouble())
 	assert.InDelta(t, -0.0225, num.Properties[3].value.toDouble(), 1e-12)
 

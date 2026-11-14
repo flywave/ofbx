@@ -94,6 +94,10 @@ func (m *Mesh) stringPrefix(prefix string) string {
 }
 
 func (m *Mesh) applyLocalTransform() {
+	if m.Geometry == nil {
+		// meshes without a linked geometry exist in real files
+		return
+	}
 	mat := m.getGeometricMatrix()
 	m.Geometry.applyMatrix(&mat)
 }

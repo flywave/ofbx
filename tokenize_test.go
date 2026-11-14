@@ -179,7 +179,7 @@ FBXHeaderExtension:  {
 	assert.Equal(t, "FBXHeaderExtension", root.Children[0].IDString())
 	version := root.Children[0].Child("Version")
 	require.NotNil(t, version)
-	assert.Equal(t, int64(7400), version.Properties[0].value.toint64())
+	assert.Equal(t, 7400, propInt(version.Properties[0]))
 }
 
 func TestTokenizeEmpty(t *testing.T) {

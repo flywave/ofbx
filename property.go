@@ -244,7 +244,10 @@ func isLong(prop *Property) bool {
 	if prop == nil {
 		return false
 	}
-	return prop.Type == LONG
+	// integer ids arrive as 'L' from binary files and as 'I' when the
+	// value fits in 32 bits (the text reader materializes small ints that
+	// way, matching the FBX SDK)
+	return prop.Type == LONG || prop.Type == INTEGER
 }
 
 func (p *Property) String() string {
@@ -270,12 +273,13 @@ func (p *Property) GetType() PropertyType { return p.Type }
 // Count returns the element count for array properties.
 func (p *Property) GetCount() int { return p.Count }
 
-// ValueU64 interprets the property payload as a little-endian unsigned
-// integer (object ids are stored as 64-bit 'L' values).
-func (p *Property) ValueU64() uint64 { return p.value.touint64() }
+// ValueU64 interprets the property payload as an unsigned integer
+// regardless of the stored width ('I' or 'L').
+func (p *Property) ValueU64() uint64 { return uint64(propInt(p)) }
 
-// ValueI64 interprets the property payload as a little-endian integer.
-func (p *Property) ValueI64() int64 { return p.value.toint64() }
+// ValueI64 interprets the property payload as an integer regardless of the
+// stored width ('I' or 'L').
+func (p *Property) ValueI64() int64 { return int64(propInt(p)) }
 
 // ValueF64 interprets the property payload as a double.
 func (p *Property) ValueF64() float64 { return propFloat(p) }

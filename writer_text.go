@@ -112,7 +112,10 @@ func (tw *textWriter) writeProperty(p *Property) error {
 	case STRING: // 'S'
 		return tw.writeString(data)
 	case RAWSTRING: // 'R'
-		return tw.writeString(data)
+		// binary payloads hex-escape everything but plain printable bytes:
+		// third-party ASCII parsers do not process escapes, so quote and
+		// backslash bytes inside the payload would break their tokenization
+		return tw.writeRawString(data)
 	case BOOL: // 'C'
 		if len(data) > 0 && data[0] != 0 {
 			tw.out.WriteString("T")
@@ -143,6 +146,21 @@ func (tw *textWriter) writeProperty(p *Property) error {
 	return nil
 }
 
+// writeRawString emits a binary payload as a quoted string, hex-escaping
+// every byte that is not plain printable ASCII.
+func (tw *textWriter) writeRawString(data []byte) error {
+	tw.out.WriteByte('"')
+	for _, b := range data {
+		if b >= 0x20 && b < 0x7f && b != '"' && b != '\\' {
+			tw.out.WriteByte(b)
+		} else {
+			tw.out.WriteString(fmt.Sprintf("\\x%02x", b))
+		}
+	}
+	tw.out.WriteByte('"')
+	return nil
+}
+
 func (tw *textWriter) writeString(data []byte) error {
 	tw.out.WriteByte('"')
 	for _, b := range data {
@@ -158,7 +176,14 @@ func (tw *textWriter) writeString(data []byte) error {
 		case '\t':
 			tw.out.WriteString("\\t")
 		default:
-			tw.out.WriteByte(b)
+			if b >= 0x20 && b < 0x7f {
+				tw.out.WriteByte(b)
+			} else {
+				// control bytes (the \x00\x01 namespace separator and
+				// friends) must be hex-escaped: raw NUL terminates C-string
+				// based parsers
+				tw.out.WriteString(fmt.Sprintf("\\x%02x", b))
+			}
 		}
 	}
 	tw.out.WriteByte('"')

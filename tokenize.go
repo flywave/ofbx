@@ -169,7 +169,13 @@ func (c *Cursor) readProperty() (*Property, error) {
 		if int64(length) > maxPropertyBytes {
 			return nil, fmt.Errorf("ofbx: raw property length %d exceeds limit", length)
 		}
-		val = append(tmp, c.readBytes(length)...)
+		// the payload is the data only; the length prefix is framing, not
+		// content (mixing it in grew the property by 4 bytes on every
+		// re-encode)
+		val = c.readBytes(length)
+		if len(val) != length {
+			return nil, errors.New("truncated raw property payload")
+		}
 	case 'b', 'f', 'd', 'l', 'i', 'c':
 		unCompressedLength := c.readBytes(4)
 		encoding := c.readBytes(4)

@@ -371,7 +371,7 @@ func FuzzEncodeText(f *testing.F) {
 			// binary loading (payloads travel untouched) but cannot be
 			// spelled as text, which must expand arrays; that limitation is
 			// inherent to the format, not a bug
-			if strings.Contains(err.Error(), "decompressing array") {
+			if strings.Contains(err.Error(), "decompressing array") || strings.Contains(err.Error(), "bad compressed array") {
 				t.Skip("corrupt zlib payload cannot be text-encoded")
 			}
 			t.Fatalf("EncodeText failed on a parsed scene: %v", err)
