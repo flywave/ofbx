@@ -19,6 +19,12 @@ const (
 	ANIMATION_LAYER      Type = iota
 	ANIMATION_CURVE      Type = iota
 	ANIMATION_CURVE_NODE Type = iota
+	VIDEO                Type = iota
+	CAMERA               Type = iota
+	LIGHT                Type = iota
+	BLEND_SHAPE          Type = iota
+	BLEND_SHAPE_CHANNEL  Type = iota
+	SHAPE                Type = iota
 	NOTYPE               Type = iota
 )
 
@@ -38,6 +44,12 @@ var (
 		ANIMATION_LAYER:      "animation layer",
 		ANIMATION_CURVE:      "animation curve",
 		ANIMATION_CURVE_NODE: "animation curve node",
+		VIDEO:                "video",
+		CAMERA:               "camera",
+		LIGHT:                "light",
+		BLEND_SHAPE:          "blend shape",
+		BLEND_SHAPE_CHANNEL:  "blend shape channel",
+		SHAPE:                "shape",
 	}
 )
 

@@ -180,7 +180,7 @@ func propInt(p *Property) int {
 func findChildren(element *Element, id string) []*Element {
 	iterables := element.Children
 	for idx, val := range iterables {
-		if val.ID.String() == id {
+		if val.IDString() == id {
 			return iterables[idx:]
 		}
 	}
@@ -199,7 +199,7 @@ func assignSingleChildProperty(element *Element, id string, dv **DataView) bool 
 func findSingleChildProperty(element *Element, id string) *Property {
 	iterables := element.Children
 	for idx, val := range iterables {
-		if val.ID.String() == id {
+		if val.IDString() == id {
 			if len(iterables[idx].Properties) > 0 {
 				return iterables[idx].Properties[0]
 			}
@@ -211,7 +211,7 @@ func findSingleChildProperty(element *Element, id string) *Property {
 func findChildProperty(element *Element, id string) []*Property {
 	iterables := element.Children
 	for idx, val := range iterables {
-		if val.ID.String() == id {
+		if val.IDString() == id {
 			return iterables[idx].Properties
 		}
 	}
@@ -263,3 +263,31 @@ func (p *Property) stringPrefix(prefix string) string {
 	// s += ", compressedLen=" + fmt.Sprintf("%d", p.compressedLength)
 	return s
 }
+
+// Type exposes the property's FBX type character.
+func (p *Property) GetType() PropertyType { return p.Type }
+
+// Count returns the element count for array properties.
+func (p *Property) GetCount() int { return p.Count }
+
+// ValueU64 interprets the property payload as a little-endian unsigned
+// integer (object ids are stored as 64-bit 'L' values).
+func (p *Property) ValueU64() uint64 { return p.value.touint64() }
+
+// ValueI64 interprets the property payload as a little-endian integer.
+func (p *Property) ValueI64() int64 { return p.value.toint64() }
+
+// ValueF64 interprets the property payload as a double.
+func (p *Property) ValueF64() float64 { return propFloat(p) }
+
+// ValueString returns string/raw payloads as text.
+func (p *Property) ValueString() string { return p.value.String() }
+
+// ValueBytes returns raw payload bytes.
+func (p *Property) ValueBytes() []byte { return p.rawBytes() }
+
+// ArrayF64 decodes float array payloads.
+func (p *Property) ArrayF64() ([]float64, error) { return parseArrayRawFloat64(p) }
+
+// ArrayI64 decodes integer array payloads.
+func (p *Property) ArrayI64() ([]int64, error) { return parseArrayRawInt64(p) }

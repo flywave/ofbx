@@ -17,7 +17,16 @@ func (na *NodeAttribute) Type() Type {
 	return NODE_ATTRIBUTE
 }
 
-func parseNodeAttribute(scene *Scene, element *Element) (*NodeAttribute, error) {
+func parseNodeAttribute(scene *Scene, element *Element) (Obj, error) {
+	// Camera and Light attributes carry their own typed parameters
+	if sub := element.getProperty(2); sub != nil {
+		switch sub.value.String() {
+		case "Camera":
+			return parseCameraAttributes(scene, element), nil
+		case "Light":
+			return parseLightAttributes(scene, element), nil
+		}
+	}
 	na := NewNodeAttribute(scene, element)
 	typeFlags := findChildProperty(element, "TypeFlags")
 	if len(typeFlags) != 0 {

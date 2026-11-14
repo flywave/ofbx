@@ -14,6 +14,9 @@ type Scene struct {
 	ObjectMap       map[uint64]Obj
 	Meshes          []*Mesh
 	AnimationStacks []*AnimationStack
+	Videos          []*Video
+	Cameras         []*Camera
+	Lights          []*Light
 	Connections     []Connection
 	TakeInfos       []TakeInfo
 }
@@ -64,7 +67,7 @@ func (s *Scene) Geometries() []*Geometry {
 		if elem == nil {
 			continue
 		}
-		if elem.ID.String() == "Geometry" {
+		if elem.IDString() == "Geometry" {
 			out = append(out, o.(*Geometry))
 		}
 	}

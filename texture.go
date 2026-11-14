@@ -13,6 +13,9 @@ const (
 // Texture is a texture file on an object
 type Texture struct {
 	Object
+	// Media is the video clip backing this texture when embedded media is
+	// used, nil for plain file textures.
+	Media            *Video
 	filename         *DataView
 	relativeFilename *DataView
 }

@@ -151,6 +151,9 @@ func resolveObjectLinks(o Obj, typ Type, properties []string) []Obj {
 }
 
 func resolveObjectLinkReverse(o Obj, typ Type) Obj {
+	if o == nil || o.Element() == nil || o.Scene() == nil {
+		return nil
+	}
 	var id uint64
 	if prop := o.Element().getProperty(0); prop != nil {
 		rdr := prop.value
