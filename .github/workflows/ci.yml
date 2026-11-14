@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test (race)
+        run: go test -race -count=1 ./...
+
+      - name: Fuzz smoke (30s)
+        run: go test -count=1 -run FuzzLoadEncode -fuzz=FuzzLoadEncode -fuzztime=30s .
+
+      - name: Build examples
+        run: |
+          for d in examples/*/; do
+            (cd "$d" && go build .)
+          done
