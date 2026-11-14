@@ -100,8 +100,8 @@ func TestClusterPostProcess(t *testing.T) {
 
 	// Create mock objects
 	cluster := &Cluster{
-		Object: *NewObject(scene, &Element{ID: &DataView{}}),
-		Skin:   &Skin{},
+		Object: *NewObject(scene, &Element{ID: NewDataView("")}),
+		Skin:   NewSkin(scene, &Element{ID: NewDataView("")}),
 	}
 
 	// Note: Geometry and Vertex types are not defined in the current scope
@@ -257,8 +257,8 @@ func BenchmarkClusterPostProcess(b *testing.B) {
 	scene := &Scene{}
 
 	cluster := &Cluster{
-		Object: *NewObject(scene, &Element{ID: &DataView{}}),
-		Skin:   &Skin{},
+		Object: *NewObject(scene, &Element{ID: NewDataView("")}),
+		Skin:   NewSkin(scene, &Element{ID: NewDataView("")}),
 	}
 
 	b.ResetTimer()

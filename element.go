@@ -7,6 +7,19 @@ type Element struct {
 	ID         *DataView
 	Children   []*Element
 	Properties []*Property
+
+	// idCache memoizes ID.String(); element ids never change after parse or
+	// construction, and id comparisons are the parser's hottest lookup
+	idCache string
+}
+
+// IDString returns the element's id as a string, cached after the first
+// call. Mutating ID directly is not supported.
+func (e *Element) IDString() string {
+	if e.idCache == "" && e.ID != nil {
+		e.idCache = e.ID.String()
+	}
+	return e.idCache
 }
 
 func (e *Element) getProperty(idx int) *Property {

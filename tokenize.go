@@ -50,6 +50,24 @@ func (c *Cursor) readShortString() (string, error) {
 	}
 	return string(byt), nil
 }
+
+// readLongStringBytes reads a u32-length byte payload without copying
+// through a string.
+func (c *Cursor) readLongStringBytes() ([]byte, error) {
+	var length uint32
+	if err := binary.Read(c, binary.LittleEndian, &length); err != nil {
+		return nil, err
+	}
+	if int64(length) > maxPropertyBytes {
+		return nil, fmt.Errorf("ofbx: string property length %d exceeds limit", length)
+	}
+	byt := make([]byte, length)
+	if _, err := io.ReadFull(c, byt); err != nil {
+		return nil, err
+	}
+	return byt, nil
+}
+
 func (c *Cursor) readLongString() (string, error) {
 	var length uint32
 	err := binary.Read(c, binary.LittleEndian, &length)
@@ -117,20 +135,19 @@ func (c *Cursor) readProperty() (*Property, error) {
 		//fmt.Println(err)
 	}
 	prop.Type = PropertyType(typ)
-	var val string
-	//fmt.Println("Got property type:", string(prop.typ))
+	var val []byte
 	// readFixed reads n bytes, rejecting truncated streams so the encoder
 	// never sees a scalar property with a short payload
-	readFixed := func(n int) (string, error) {
+	readFixed := func(n int) ([]byte, error) {
 		b := c.readBytes(n)
 		if len(b) != n {
-			return "", fmt.Errorf("truncated %c property payload", typ)
+			return nil, fmt.Errorf("truncated %c property payload", typ)
 		}
-		return string(b), nil
+		return b, nil
 	}
 	switch prop.Type {
 	case 'S':
-		val, err = c.readLongString()
+		val, err = c.readLongStringBytes()
 	case 'Y':
 		val, err = readFixed(2)
 	case 'C':
@@ -152,8 +169,8 @@ func (c *Cursor) readProperty() (*Property, error) {
 		if int64(length) > maxPropertyBytes {
 			return nil, fmt.Errorf("ofbx: raw property length %d exceeds limit", length)
 		}
-		val = string(append(tmp, c.readBytes(length)...))
-	case 'b', 'f', 'd', 'l', 'i':
+		val = append(tmp, c.readBytes(length)...)
+	case 'b', 'f', 'd', 'l', 'i', 'c':
 		unCompressedLength := c.readBytes(4)
 		encoding := c.readBytes(4)
 		compressedLength := c.readBytes(4)
@@ -173,7 +190,7 @@ func (c *Cursor) readProperty() (*Property, error) {
 		} else if prop.Encoding > 1 {
 			return nil, fmt.Errorf("invalid array encoding %d", prop.Encoding)
 		}
-		val = string(c.readBytes(length))
+		val = c.readBytes(length)
 		if len(val) != length {
 			return nil, errors.New("truncated array payload")
 		}
@@ -184,7 +201,7 @@ func (c *Cursor) readProperty() (*Property, error) {
 		return nil, err
 	}
 
-	prop.value = NewDataView(val)
+	prop.value = NewDataViewBytes(val)
 
 	return &prop, nil
 }

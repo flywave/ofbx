@@ -19,6 +19,15 @@ func NewDataView(s string) *DataView {
 	}
 }
 
+// NewDataViewBytes creates a DataView that reads from b without copying.
+// Callers must not modify b afterwards; tokenizer payloads are exclusive
+// buffers, so this avoids a string round trip per property.
+func NewDataViewBytes(b []byte) *DataView {
+	return &DataView{
+		*bytes.NewReader(b),
+	}
+}
+
 // BufferDataView creates a DataView from the delivered buffer
 func BufferDataView(buff *bytes.Buffer) *DataView {
 	return &DataView{

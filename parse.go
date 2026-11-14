@@ -1,11 +1,13 @@
 package ofbx
 
 import (
+	"bytes"
 	"compress/zlib"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"time"
 )
 
@@ -43,7 +45,7 @@ func ParseTemplates(root *Element) {
 	templates := make(map[string]*Element)
 	defs = defs[0].Children
 	for _, def := range defs {
-		if def.ID.String() == "ObjectType" {
+		if def.IDString() == "ObjectType" {
 			prop1 := def.getProperty(0).value
 			prop1Data, err := io.ReadAll(prop1)
 			if err != nil && err != io.EOF {
@@ -52,7 +54,7 @@ func ParseTemplates(root *Element) {
 			}
 			subdefs := def.Children
 			for _, subdef := range subdefs {
-				if subdef.ID.String() == "PropertyTemplate" {
+				if subdef.IDString() == "PropertyTemplate" {
 					prop2 := subdef.getProperty(0).value
 					prop2Data, err := io.ReadAll(prop2)
 					if err != nil && err != io.EOF {
@@ -153,37 +155,108 @@ func parseArrayRawInt(property *Property) ([]int, error) {
 	if err := validateArrayCount(property); err != nil {
 		return nil, err
 	}
-	switch property.Encoding {
-	case 0:
-		return parseArrayRawIntEnd(property.value, property.Count, property.Type.Size()), nil
-	case 1:
-		zr, err := zlib.NewReader(&property.value.Reader)
-		if err != nil {
-			return nil, fmt.Errorf("New Reader failed"+": %w", err)
-		}
-		defer zr.Close()
-		return parseArrayRawIntEnd(zr, property.Count, property.Type.Size()), nil
+	data, err := arrayPayload(property)
+	if err != nil {
+		return nil, err
 	}
-	return nil, errors.New("Invalid encoding")
+	i64s := decodeInt64s(data, property.Type.Size())
+	out := make([]int, len(i64s))
+	for i, v := range i64s {
+		out[i] = int(v)
+	}
+	return out, nil
 }
 
-func parseArrayRawIntEnd(r io.Reader, ln int, elemSize int) []int {
+// arrayPayload returns the raw (or inflated) payload bytes for an array
+// property whose count was already validated.
+func arrayPayload(property *Property) ([]byte, error) {
+	if property.Encoding == 1 {
+		return inflateArray(property)
+	}
+	return property.rawBytes(), nil
+}
+
+// decodeInt64s decodes little-endian integers from an exact payload.
+func decodeInt64s(data []byte, elemSize int) []int64 {
+	ln := len(data) / elemSize
+	out := make([]int64, ln)
 	if elemSize == 4 {
-		i32s := make([]int32, int(ln))
-		binary.Read(r, binary.LittleEndian, i32s)
-		out := make([]int, len(i32s))
-		for i, f := range i32s {
-			out[i] = int(f)
+		for i := 0; i < ln; i++ {
+			out[i] = int64(int32(binary.LittleEndian.Uint32(data[i*4:])))
 		}
 		return out
 	}
-	i64s := make([]int64, int(ln))
-	binary.Read(r, binary.LittleEndian, i64s)
-	out := make([]int, len(i64s))
-	for i, f := range i64s {
-		out[i] = int(f)
+	for i := 0; i < ln; i++ {
+		out[i] = int64(binary.LittleEndian.Uint64(data[i*8:]))
 	}
 	return out
+}
+
+// decodeFloat64s decodes little-endian doubles/floats from an exact payload.
+func decodeFloat64s(data []byte, elemSize int) []float64 {
+	ln := len(data) / elemSize
+	out := make([]float64, ln)
+	if elemSize == 4 {
+		for i := 0; i < ln; i++ {
+			out[i] = float64(math.Float32frombits(binary.LittleEndian.Uint32(data[i*4:])))
+		}
+		return out
+	}
+	for i := 0; i < ln; i++ {
+		out[i] = math.Float64frombits(binary.LittleEndian.Uint64(data[i*8:]))
+	}
+	return out
+}
+
+// decodeFloat32s decodes little-endian floats/doubles from an exact payload.
+func decodeFloat32s(data []byte, elemSize int) []float32 {
+	ln := len(data) / elemSize
+	out := make([]float32, ln)
+	if elemSize == 4 {
+		for i := 0; i < ln; i++ {
+			out[i] = math.Float32frombits(binary.LittleEndian.Uint32(data[i*4:]))
+		}
+		return out
+	}
+	for i := 0; i < ln; i++ {
+		out[i] = float32(math.Float64frombits(binary.LittleEndian.Uint64(data[i*8:])))
+	}
+	return out
+}
+
+// inflateArray decompresses a zlib array payload into a buffer sized for
+// count elements; a short stream leaves the tail zeroed like a short read.
+func inflateArray(p *Property) ([]byte, error) {
+	out := make([]byte, p.Count*p.Type.Size())
+	zr, err := zlib.NewReader(&p.value.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("ofbx: inflating array: %w", err)
+	}
+	defer zr.Close()
+	_, _ = io.ReadFull(zr, out)
+	p.value.Seek(0, io.SeekStart)
+	return out, nil
+}
+
+func parseArrayRawIntEnd(r io.Reader, ln int, elemSize int) []int {
+	data, _ := io.ReadAll(r)
+	i64s := decodeInt64s(exactBytes(data, ln, elemSize), elemSize)
+	out := make([]int, len(i64s))
+	for i, v := range i64s {
+		out[i] = int(v)
+	}
+	return out
+}
+
+// exactBytes pads or trims data to exactly n elements.
+func exactBytes(data []byte, ln, elemSize int) []byte {
+	want := ln * elemSize
+	if len(data) >= want {
+		return data[:want]
+	}
+	padded := make([]byte, want)
+	copy(padded, data)
+	return padded
 }
 
 func parseArrayRawInt64(property *Property) ([]int64, error) {
@@ -193,33 +266,16 @@ func parseArrayRawInt64(property *Property) ([]int64, error) {
 	if err := validateArrayCount(property); err != nil {
 		return nil, err
 	}
-	switch property.Encoding {
-	case 0:
-		return parseArrayRawInt64End(property.value, property.Count, property.Type.Size()), nil
-	case 1:
-		zr, err := zlib.NewReader(&property.value.Reader)
-		if err != nil {
-			return nil, fmt.Errorf("New Reader failed"+": %w", err)
-		}
-		defer zr.Close()
-		return parseArrayRawInt64End(zr, property.Count, property.Type.Size()), nil
+	data, err := arrayPayload(property)
+	if err != nil {
+		return nil, err
 	}
-	return nil, errors.New("Invalid encoding")
+	return decodeInt64s(data, property.Type.Size()), nil
 }
 
 func parseArrayRawInt64End(r io.Reader, ln int, elemSize int) []int64 {
-	if elemSize == 4 {
-		i32s := make([]int32, int(ln))
-		binary.Read(r, binary.LittleEndian, i32s)
-		out := make([]int64, len(i32s))
-		for i, f := range i32s {
-			out[i] = int64(f)
-		}
-		return out
-	}
-	out := make([]int64, int(ln))
-	binary.Read(r, binary.LittleEndian, out)
-	return out
+	data, _ := io.ReadAll(r)
+	return decodeInt64s(exactBytes(data, ln, elemSize), elemSize)
 }
 
 func parseArrayRawFloat32(property *Property) ([]float32, error) {
@@ -239,33 +295,16 @@ func parseArrayRawFloat32(property *Property) ([]float32, error) {
 	if err := validateArrayCount(property); err != nil {
 		return nil, err
 	}
-	switch property.Encoding {
-	case 0:
-		return parseArrayRawFloat32End(property.value, property.Count, property.Type.Size()), nil
-	case 1:
-		zr, err := zlib.NewReader(&property.value.Reader)
-		if err != nil {
-			return nil, fmt.Errorf("New Reader failed"+": %w", err)
-		}
-		defer zr.Close()
-		return parseArrayRawFloat32End(zr, property.Count, property.Type.Size()), nil
+	data, err := arrayPayload(property)
+	if err != nil {
+		return nil, err
 	}
-	return nil, errors.New("Invalid encoding")
+	return decodeFloat32s(data, property.Type.Size()), nil
 }
 
 func parseArrayRawFloat32End(r io.Reader, ln int, elemSize int) []float32 {
-	if elemSize == 4 {
-		out := make([]float32, int(ln))
-		binary.Read(r, binary.LittleEndian, out)
-		return out
-	}
-	f64s := make([]float64, int(ln))
-	binary.Read(r, binary.LittleEndian, f64s)
-	out := make([]float32, len(f64s))
-	for i, f := range f64s {
-		out[i] = float32(f)
-	}
-	return out
+	data, _ := io.ReadAll(r)
+	return decodeFloat32s(exactBytes(data, ln, elemSize), elemSize)
 }
 
 func parseArrayRawFloat64(property *Property) ([]float64, error) {
@@ -285,33 +324,16 @@ func parseArrayRawFloat64(property *Property) ([]float64, error) {
 	if err := validateArrayCount(property); err != nil {
 		return nil, err
 	}
-	switch property.Encoding {
-	case 0:
-		return parseArrayRawFloat64End(property.value, property.Count, property.Type.Size()), nil
-	case 1:
-		zr, err := zlib.NewReader(&property.value.Reader)
-		if err != nil {
-			return nil, fmt.Errorf("New Reader failed"+": %w", err)
-		}
-		defer zr.Close()
-		return parseArrayRawFloat64End(zr, property.Count, property.Type.Size()), nil
+	data, err := arrayPayload(property)
+	if err != nil {
+		return nil, err
 	}
-	return nil, errors.New("Invalid encoding")
+	return decodeFloat64s(data, property.Type.Size()), nil
 }
 
 func parseArrayRawFloat64End(r io.Reader, ln int, elemSize int) []float64 {
-	if elemSize == 4 {
-		f32s := make([]float32, int(ln))
-		binary.Read(r, binary.LittleEndian, f32s)
-		out := make([]float64, len(f32s))
-		for i, f := range f32s {
-			out[i] = float64(f)
-		}
-		return out
-	}
-	out := make([]float64, int(ln))
-	binary.Read(r, binary.LittleEndian, out)
-	return out
+	data, _ := io.ReadAll(r)
+	return decodeFloat64s(exactBytes(data, ln, elemSize), elemSize)
 }
 
 func parseDoubleVecDataVec2(property *Property) ([]Point2, error) {
@@ -604,7 +626,7 @@ func parseTakes(scene *Scene) (bool, error) {
 	objects := takes[0].Children
 
 	for _, object := range objects {
-		if object.ID.String() != "Take" {
+		if object.IDString() != "Take" {
 			continue
 		}
 		if !isString(object.getProperty(0)) {
@@ -644,11 +666,11 @@ func parseTakes(scene *Scene) (bool, error) {
 func parseGlobalSettings(root *Element, scene *Scene) {
 
 	for _, settings := range root.Children {
-		if settings.ID.String() != "GlobalSettings" {
+		if settings.IDString() != "GlobalSettings" {
 			continue
 		}
 		for _, props70 := range settings.Children {
-			if props70.ID.String() != "Properties70" {
+			if props70.IDString() != "Properties70" {
 				continue
 			}
 			for _, node := range props70.Children {
@@ -723,11 +745,16 @@ func parseObjects(root *Element, scene *Scene) (bool, error) {
 		if id == 0 {
 			continue
 		}
-		switch elem.ID.String() {
+		switch elem.IDString() {
 		case "Geometry":
 			lastProp := elem.getProperty(len(elem.Properties) - 1)
 			if lastProp != nil && lastProp.value.String() == "Mesh" {
 				obj, err = parseGeometry(scene, elem)
+				if err != nil {
+					return false, err
+				}
+			} else if lastProp != nil && lastProp.value.String() == "Shape" {
+				obj, err = parseShape(scene, elem)
 				if err != nil {
 					return false, err
 				}
@@ -759,6 +786,10 @@ func parseObjects(root *Element, scene *Scene) (bool, error) {
 					}
 				case "Skin":
 					obj = NewSkin(scene, elem)
+				case "BlendShape":
+					obj = NewBlendShape(scene, elem)
+				case "BlendShapeChannel":
+					obj = parseBlendShapeChannel(scene, elem)
 				}
 			}
 		case "NodeAttribute":
@@ -785,10 +816,21 @@ func parseObjects(root *Element, scene *Scene) (bool, error) {
 					}
 				case "Null", "Root":
 					obj = NewNode(scene, elem, NULL_NODE)
+				case "Camera":
+					obj = NewCamera(scene, elem)
+					scene.Cameras = append(scene.Cameras, obj.(*Camera))
+				case "Light":
+					obj = NewLight(scene, elem)
+					scene.Lights = append(scene.Lights, obj.(*Light))
 				}
 			}
 		case "Texture":
 			obj = parseTexture(scene, elem)
+		case "Video":
+			obj = parseVideo(scene, elem)
+			if obj != nil {
+				scene.Videos = append(scene.Videos, obj.(*Video))
+			}
 		}
 
 		scene.ObjectMap[id] = obj
@@ -834,6 +876,29 @@ func parseObjects(root *Element, scene *Scene) (bool, error) {
 			case MATERIAL:
 				mesh.Materials = append(mesh.Materials, (child.(*Material)))
 			}
+		case GEOMETRY:
+			geom := parent.(*Geometry)
+			switch ctyp {
+			case SKIN:
+				geom.Skin = child.(*Skin)
+			case BLEND_SHAPE:
+				geom.BlendShapes = append(geom.BlendShapes, child.(*BlendShape))
+			}
+		case BLEND_SHAPE:
+			if ctyp == BLEND_SHAPE_CHANNEL {
+				bs := parent.(*BlendShape)
+				bs.Channels = append(bs.Channels, child.(*BlendShapeChannel))
+			}
+		case BLEND_SHAPE_CHANNEL:
+			if ctyp == SHAPE {
+				ch := parent.(*BlendShapeChannel)
+				ch.Shapes = append(ch.Shapes, child.(*Shape))
+			}
+		case TEXTURE:
+			if ctyp == VIDEO {
+				tex := parent.(*Texture)
+				tex.Media = child.(*Video)
+			}
 		case SKIN:
 			skin := parent.(*Skin)
 			if ctyp == CLUSTER {
@@ -861,11 +926,6 @@ func parseObjects(root *Element, scene *Scene) (bool, error) {
 					break
 				}
 				mat.Textures[ttyp] = child.(*Texture)
-			}
-		case GEOMETRY:
-			geom := parent.(*Geometry)
-			if ctyp == SKIN {
-				geom.Skin = child.(*Skin)
 			}
 		case CLUSTER:
 			cluster := parent.(*Cluster)
@@ -918,4 +978,35 @@ func parseObjects(root *Element, scene *Scene) (bool, error) {
 // NeedsPostProcessing note objects that require post processing
 type NeedsPostProcessing interface {
 	postProcess() bool
+}
+
+// parseArrayRawBytes decodes a 'c' (byte) array property, inflating zlib
+// payloads when encoded.
+func parseArrayRawBytes(property *Property) ([]byte, error) {
+	if property.Type != ArrayBYTE {
+		return nil, fmt.Errorf("ofbx: byte array expected, got %q", string(property.Type))
+	}
+	if err := validateArrayCount(property); err != nil {
+		return nil, err
+	}
+	data := property.rawBytes()
+	if property.Encoding == 1 {
+		zr, err := zlib.NewReader(bytes.NewReader(data))
+		if err != nil {
+			return nil, fmt.Errorf("ofbx: inflating byte array: %w", err)
+		}
+		defer zr.Close()
+		out, err := io.ReadAll(zr)
+		if err != nil {
+			return nil, fmt.Errorf("ofbx: inflating byte array: %w", err)
+		}
+		if len(out) != property.Count {
+			return nil, fmt.Errorf("ofbx: byte array inflated to %d bytes, want %d", len(out), property.Count)
+		}
+		return out, nil
+	}
+	if len(data) != property.Count {
+		return nil, fmt.Errorf("ofbx: byte array holds %d bytes, want %d", len(data), property.Count)
+	}
+	return data, nil
 }
