@@ -67,7 +67,7 @@ func SaveScene(scene *Scene, w io.Writer, opts ...DocOption) error {
 		if objEl.ID == nil {
 			continue
 		}
-		typeName := objEl.ID.String()
+		typeName := objEl.IDString()
 		if doc.onlySupported && !supportedObjectTypes[typeName] {
 			continue
 		}

@@ -154,7 +154,7 @@ func TestReadElement(t *testing.T) {
 
 	element, err := cursor.readElement(7400)
 	require.NoError(t, err)
-	assert.Equal(t, "test", element.ID.String())
+	assert.Equal(t, "test", element.IDString())
 	assert.Len(t, element.Properties, 1)
 	assert.Equal(t, PropertyType('C'), element.Properties[0].Type)
 }
@@ -176,7 +176,7 @@ FBXHeaderExtension:  {
 	require.NoError(t, err)
 	require.NotNil(t, root)
 	require.Len(t, root.Children, 1)
-	assert.Equal(t, "FBXHeaderExtension", root.Children[0].ID.String())
+	assert.Equal(t, "FBXHeaderExtension", root.Children[0].IDString())
 	version := root.Children[0].Child("Version")
 	require.NotNil(t, version)
 	assert.Equal(t, int64(7400), version.Properties[0].value.toint64())

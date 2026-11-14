@@ -321,7 +321,7 @@ func TestDefinitionsCountConsistency(t *testing.T) {
 	require.NotNil(t, defs)
 	var total int32
 	for _, c := range defs.Children {
-		if c.ID.String() != "ObjectType" {
+		if c.IDString() != "ObjectType" {
 			continue
 		}
 		cnt := c.Child("Count")

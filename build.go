@@ -183,7 +183,7 @@ func (e *Element) AddChildElement(id string, props ...*Property) *Element {
 // Child returns the first child with the given ID, or nil.
 func (e *Element) Child(id string) *Element {
 	for _, c := range e.Children {
-		if c.ID != nil && c.ID.String() == id {
+		if c.ID != nil && c.IDString() == id {
 			return c
 		}
 	}
@@ -194,7 +194,7 @@ func (e *Element) Child(id string) *Element {
 func (e *Element) ChildrenOf(id string) []*Element {
 	out := []*Element{}
 	for _, c := range e.Children {
-		if c.ID != nil && c.ID.String() == id {
+		if c.ID != nil && c.IDString() == id {
 			out = append(out, c)
 		}
 	}
@@ -205,7 +205,7 @@ func (e *Element) ChildrenOf(id string) []*Element {
 // new child when no such child exists yet.
 func (e *Element) ReplaceChild(id string, replacement *Element) {
 	for i, c := range e.Children {
-		if c.ID != nil && c.ID.String() == id {
+		if c.ID != nil && c.IDString() == id {
 			e.Children[i] = replacement
 			return
 		}
@@ -217,7 +217,7 @@ func (e *Element) ReplaceChild(id string, replacement *Element) {
 // child was removed.
 func (e *Element) RemoveChild(id string) bool {
 	for i, c := range e.Children {
-		if c.ID != nil && c.ID.String() == id {
+		if c.ID != nil && c.IDString() == id {
 			e.Children = append(e.Children[:i], e.Children[i+1:]...)
 			return true
 		}

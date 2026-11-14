@@ -55,7 +55,7 @@ func (tw *textWriter) writeElement(e *Element, depth int) error {
 		return errors.New("ofbx: cannot encode element without ID")
 	}
 	tw.indent(depth)
-	tw.out.WriteString(e.ID.String())
+	tw.out.WriteString(e.IDString())
 	tw.out.WriteString(":")
 
 	for i, p := range e.Properties {
@@ -65,7 +65,7 @@ func (tw *textWriter) writeElement(e *Element, depth int) error {
 			tw.out.WriteString(", ")
 		}
 		if err := tw.writeProperty(p); err != nil {
-			return fmt.Errorf("encoding property of element %q: %w", e.ID.String(), err)
+			return fmt.Errorf("encoding property of element %q: %w", e.IDString(), err)
 		}
 	}
 

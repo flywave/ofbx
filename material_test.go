@@ -23,8 +23,8 @@ func TestNewMaterial(t *testing.T) {
 		t.Error("Material should have correct scene")
 	}
 
-	if material.Object.element.ID.String() != "test_material" {
-		t.Errorf("Expected material element ID to be 'test_material', got %s", material.Object.element.ID.String())
+	if material.Object.element.IDString() != "test_material" {
+		t.Errorf("Expected material element ID to be 'test_material', got %s", material.Object.element.IDString())
 	}
 }
 

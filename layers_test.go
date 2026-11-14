@@ -190,7 +190,7 @@ func TestAnimationTakesWritten(t *testing.T) {
 	require.NotNil(t, defs)
 	found := false
 	for _, c := range defs.Children {
-		if c.ID.String() == "ObjectType" && len(c.Properties) > 0 && c.Properties[0].value.String() == "AnimationStack" {
+		if c.IDString() == "ObjectType" && len(c.Properties) > 0 && c.Properties[0].value.String() == "AnimationStack" {
 			require.NotNil(t, c.Child("PropertyTemplate"))
 			found = true
 		}

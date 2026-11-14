@@ -28,7 +28,8 @@ const MaxUvs = 4
 // Geometry is the base geometric shape objec that is implemented in forms such as meshes that dictate control point deformations
 type Geometry struct {
 	Object
-	Skin *Skin
+	Skin        *Skin
+	BlendShapes []*BlendShape
 
 	Vertices, Normals, Tangents []Point3
 
@@ -371,7 +372,7 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 	}
 
 	for _, elem := range element.Children {
-		if elem.ID.String() != "LayerElementUV" {
+		if elem.IDString() != "LayerElementUV" {
 			continue
 		}
 		uvIdx := 0

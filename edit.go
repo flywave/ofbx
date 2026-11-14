@@ -215,7 +215,7 @@ func isLayerChild(c *Element) bool {
 	if c == nil || c.ID == nil {
 		return false
 	}
-	id := c.ID.String()
+	id := c.IDString()
 	return strings.HasPrefix(id, "LayerElement") || id == "Layer"
 }
 

@@ -110,14 +110,21 @@ Runnable programs live in [examples/](examples/).
 | Skeleton (LimbNode hierarchy) | ✅ | ✅ |
 | Skin/Cluster | ✅ | ✅ |
 | Animation (Stack/Layer/CurveNode/Curve, Takes) | ✅ | ✅ |
+| BlendShapes (morph targets) | ✅ | ✅ |
+| Cameras, lights (typed attributes) | ✅ | ✅ |
+| Embedded media (Video/Content) + file videos | ✅ | ✅ |
 | GlobalSettings | ✅ | ✅ |
 | Binary FBX 7.1/7.4 (u32 offsets), 7.5+/7.7 (u64 offsets) | ✅ | ✅ |
 | zlib-compressed arrays | ✅ | ✅ |
 | Text (ASCII) FBX | ✅ | ✅ |
-| BlendShapes, cameras/lights, embedded media | ❌ | ❌ |
-
 Robustness: malformed/truncated/hostile input returns errors instead of
 panicking or exhausting memory (allocation caps, fuzzed via `FuzzLoadEncode`).
+
+## Performance
+
+Loading runs at roughly 25-32 MB/s on Apple Silicon (dominated by zlib
+inflation and garbage collection); encoding at ~240 MB/s. Benchmarks live in
+`bench_test.go` (`go test -bench .`).
 
 ## History and credits
 

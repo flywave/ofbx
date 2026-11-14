@@ -130,7 +130,7 @@ func (enc *encoder) computeSizes(e *Element, start int) (int, error) {
 	if e == nil || e.ID == nil {
 		return 0, errors.New("ofbx: cannot encode element without ID")
 	}
-	name := e.ID.String()
+	name := e.IDString()
 	if len(name) > 255 {
 		return 0, fmt.Errorf("ofbx: element name %q exceeds 255 bytes", name)
 	}
@@ -174,7 +174,7 @@ func (enc *encoder) computeSizes(e *Element, start int) (int, error) {
 func (enc *encoder) writeNode(buf *bytes.Buffer, e *Element, start int) error {
 	size, ok := enc.sizes[e]
 	if !ok {
-		return fmt.Errorf("ofbx: internal error: size not computed for element %q", e.ID.String())
+		return fmt.Errorf("ofbx: internal error: size not computed for element %q", e.IDString())
 	}
 	end := start + size
 
@@ -182,7 +182,7 @@ func (enc *encoder) writeNode(buf *bytes.Buffer, e *Element, start int) error {
 	for _, p := range e.Properties {
 		n, err := enc.propertySize(p)
 		if err != nil {
-			return fmt.Errorf("encoding property of element %q: %w", e.ID.String(), err)
+			return fmt.Errorf("encoding property of element %q: %w", e.IDString(), err)
 		}
 		propsLen += n
 	}
@@ -190,16 +190,16 @@ func (enc *encoder) writeNode(buf *bytes.Buffer, e *Element, start int) error {
 	enc.writeOffset(buf, end)
 	enc.writeOffset(buf, len(e.Properties))
 	enc.writeOffset(buf, propsLen)
-	buf.WriteByte(byte(len(e.ID.String())))
-	buf.WriteString(e.ID.String())
+	buf.WriteByte(byte(len(e.IDString())))
+	buf.WriteString(e.IDString())
 	for _, p := range e.Properties {
 		if err := enc.writeProperty(buf, p); err != nil {
-			return fmt.Errorf("encoding property of element %q: %w", e.ID.String(), err)
+			return fmt.Errorf("encoding property of element %q: %w", e.IDString(), err)
 		}
 	}
 
 	// nodes that carry children are terminated by a NULL record
-	off := start + enc.headerSize(len(e.ID.String())) + propsLen
+	off := start + enc.headerSize(len(e.IDString())) + propsLen
 	for _, c := range e.Children {
 		if err := enc.writeNode(buf, c, off); err != nil {
 			return err

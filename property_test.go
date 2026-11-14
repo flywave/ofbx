@@ -143,16 +143,16 @@ func TestFindChildren(t *testing.T) {
 
 	result := findChildren(element, "child1")
 	assert.Len(t, result, 4) // Returns all children from first match onwards
-	assert.Equal(t, "child1", result[0].ID.String())
-	assert.Equal(t, "child2", result[1].ID.String())
-	assert.Equal(t, "child1", result[2].ID.String())
-	assert.Equal(t, "child3", result[3].ID.String())
+	assert.Equal(t, "child1", result[0].IDString())
+	assert.Equal(t, "child2", result[1].IDString())
+	assert.Equal(t, "child1", result[2].IDString())
+	assert.Equal(t, "child3", result[3].IDString())
 
 	result = findChildren(element, "child2")
 	assert.Len(t, result, 3) // Returns child2, child1, child3
-	assert.Equal(t, "child2", result[0].ID.String())
-	assert.Equal(t, "child1", result[1].ID.String())
-	assert.Equal(t, "child3", result[2].ID.String())
+	assert.Equal(t, "child2", result[0].IDString())
+	assert.Equal(t, "child1", result[1].IDString())
+	assert.Equal(t, "child3", result[2].IDString())
 
 	result = findChildren(element, "nonexistent")
 	assert.Empty(t, result)
@@ -282,7 +282,7 @@ func TestResolveProperty(t *testing.T) {
 	// Test findChildren which is the core functionality
 	result := findChildren(element, "Properties70")
 	assert.Len(t, result, 1)
-	assert.Equal(t, "Properties70", result[0].ID.String())
+	assert.Equal(t, "Properties70", result[0].IDString())
 
 	// Test with no Properties70
 	emptyElement := &Element{Children: []*Element{}}
