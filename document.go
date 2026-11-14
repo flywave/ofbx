@@ -53,6 +53,8 @@ type Document struct {
 	scene *Scene
 
 	materials []*Material
+	// animTakes records created animation stacks for the Takes section.
+	animTakes []takeEntry
 }
 
 // DocOption configures a NewDocument call.
@@ -347,6 +349,70 @@ func (d *Document) SetUVs(m *Mesh, set int, uvs []floatgeom.Point2) error {
 	layer.AddChildElement("ReferenceInformationType", NewStringProperty("Direct"))
 	layer.AddChildElement("UV", data)
 	d.addLayerEntry(geomEl, "LayerElementUV")
+	return nil
+}
+
+// SetUVsWithIndex attaches a LayerElementUV using IndexToDirect referencing:
+// uvs holds unique coordinates and uvIndex one entry per polygon vertex.
+func (d *Document) SetUVsWithIndex(m *Mesh, set int, uvs []floatgeom.Point2, uvIndex []int32) error {
+	geomEl, err := d.geometryElement(m)
+	if err != nil {
+		return err
+	}
+	if set < 0 || set >= MaxUvs {
+		return errors.Errorf("ofbx: uv set %d out of range", set)
+	}
+	if expected := polygonVertexCount(geomEl); len(uvIndex) != expected {
+		return errors.Errorf("ofbx: got %d uv indices, mesh has %d polygon vertices", len(uvIndex), expected)
+	}
+	for _, idx := range uvIndex {
+		if idx < 0 || int(idx) >= len(uvs) {
+			return errors.Errorf("ofbx: uv index %d out of range (%d uvs)", idx, len(uvs))
+		}
+	}
+	flat := make([]float64, 0, 2*len(uvs))
+	for _, uv := range uvs {
+		flat = append(flat, uv.X(), uv.Y())
+	}
+	data, err := NewDoubleArrayProperty(flat, d.CompressArrays)
+	if err != nil {
+		return err
+	}
+	idxProp, err := NewInt32ArrayProperty(uvIndex, d.CompressArrays)
+	if err != nil {
+		return err
+	}
+	layer := geomEl.AddChildElement("LayerElementUV", NewInt64Property(int64(set)))
+	layer.AddChildElement("Version", NewInt32Property(101))
+	layer.AddChildElement("Name", NewStringProperty("UVMap"))
+	layer.AddChildElement("MappingInformationType", NewStringProperty("ByPolygonVertex"))
+	layer.AddChildElement("ReferenceInformationType", NewStringProperty("IndexToDirect"))
+	layer.AddChildElement("UV", data)
+	layer.AddChildElement("UVIndex", idxProp)
+	d.addLayerEntry(geomEl, "LayerElementUV")
+	return nil
+}
+
+// SetNormalsByVertex attaches per-control-point normals (ByVertice/Direct).
+func (d *Document) SetNormalsByVertex(m *Mesh, normals []floatgeom.Point3) error {
+	geomEl, err := d.geometryElement(m)
+	if err != nil {
+		return err
+	}
+	if m.Geometry == nil || len(normals) != len(m.Geometry.Vertices) {
+		return errors.Errorf("ofbx: got %d normals, mesh has %d control points", len(normals), len(m.Geometry.Vertices))
+	}
+	data, err := NewDoubleArrayProperty(flattenPoint3s(normals), d.CompressArrays)
+	if err != nil {
+		return err
+	}
+	layer := geomEl.AddChildElement("LayerElementNormal", NewInt64Property(0))
+	layer.AddChildElement("Version", NewInt32Property(101))
+	layer.AddChildElement("Name", NewStringProperty(""))
+	layer.AddChildElement("MappingInformationType", NewStringProperty("ByVertice"))
+	layer.AddChildElement("ReferenceInformationType", NewStringProperty("Direct"))
+	layer.AddChildElement("Normals", data)
+	d.addLayerEntry(geomEl, "LayerElementNormal")
 	return nil
 }
 
@@ -651,14 +717,22 @@ func pLclVec3(name string, x, y, z float64) *Element {
 
 // ---------- save ----------
 
-// Save finalizes the document (global settings, definitions, material
-// properties) and writes it out.
-func (d *Document) Save(w io.Writer) error {
+// Prepare finalizes the document in memory (global settings, definitions,
+// takes, material properties). Save calls it automatically; calling it by
+// hand is useful before custom serialization such as EncodeText.
+func (d *Document) Prepare() {
 	d.syncGlobalSettings()
 	d.syncDefinitions()
+	d.syncTakes()
 	for _, mat := range d.materials {
 		d.syncMaterial(mat)
 	}
+}
+
+// Save finalizes the document (global settings, definitions, material
+// properties) and writes it out.
+func (d *Document) Save(w io.Writer) error {
+	d.Prepare()
 	return Encode(w, d.root, d.Version)
 }
 
@@ -746,29 +820,59 @@ func (d *Document) syncDefinitions() {
 }
 
 // objectTypeTemplate returns a small PropertyTemplate for well known object
-// types. Importers tolerate missing templates; these are minimal.
+// types. Importers tolerate missing templates; these carry the entries most
+// importers expect to find.
 func objectTypeTemplate(name string) *Element {
-	var p70 *Element
+	p70 := NewElement("Properties70")
+	var tmplName string
 	switch name {
 	case "Model":
-		p70 = NewElement("Properties70")
+		tmplName = "FbxNode"
 		p70.AddChild(pLclVec3("Lcl Translation", 0, 0, 0))
 		p70.AddChild(pLclVec3("Lcl Rotation", 0, 0, 0))
 		p70.AddChild(pLclVec3("Lcl Scaling", 1, 1, 1))
+	case "Geometry":
+		tmplName = "FbxMesh"
+		p70.AddChild(pColor("Color", Color{}))
+		p70.AddChild(pEntry("BBoxMin", "Vector3D", "Vector", "", NewFloat64Property(0), NewFloat64Property(0), NewFloat64Property(0)))
+		p70.AddChild(pEntry("BBoxMax", "Vector3D", "Vector", "", NewFloat64Property(0), NewFloat64Property(0), NewFloat64Property(0)))
+		p70.AddChild(pEntry("Primary Visibility", "Visibility", "", "", NewBoolProperty(false), NewInt32Property(0)))
 	case "Material":
-		p70 = NewElement("Properties70")
+		tmplName = "FbxSurfacePhong"
 		p70.AddChild(pColor("EmissiveColor", Color{}))
 		p70.AddChild(pColor("DiffuseColor", Color{1, 1, 1}))
 		p70.AddChild(pColor("SpecularColor", Color{}))
 		p70.AddChild(pNumber("ShininessExponent", 2))
+	case "Texture":
+		tmplName = "FbxFileTexture"
+		p70.AddChild(pStringEntry("TextureTypeUse", "Standard"))
+		p70.AddChild(pEntry("AlphaSource", "enum", "", "", NewInt32Property(1)))
+		p70.AddChild(pEntry("CurrentTextureBlendMode", "enum", "", "", NewInt32Property(1)))
+	case "NodeAttribute":
+		tmplName = "FbxSkeleton"
+		p70.AddChild(pEntry("Size", "double", "Number", "", NewFloat64Property(1)))
+		p70.AddChild(pEntry("SkeletonType", "enum", "", "", NewInt32Property(0)))
+	case "AnimationStack":
+		tmplName = "FbxAnimStack"
+		p70.AddChild(pKTime("LocalStart", 0))
+		p70.AddChild(pKTime("LocalStop", 0))
+		p70.AddChild(pKTime("ReferenceStart", 0))
+		p70.AddChild(pKTime("ReferenceStop", 0))
+		p70.AddChild(pStringEntry("Description", ""))
+	case "AnimationLayer":
+		tmplName = "FbxAnimLayer"
+		p70.AddChild(pNumber("Weight", 100))
+		p70.AddChild(pEntry("Mute", "bool", "", "", NewInt32Property(0)))
+		p70.AddChild(pEntry("BlendMode", "enum", "", "", NewInt32Property(0)))
+	case "AnimationCurveNode":
+		tmplName = "FbxAnimCurveNode"
+		p70.AddChild(pNumber("d|X", 1))
+		p70.AddChild(pNumber("d|Y", 1))
+		p70.AddChild(pNumber("d|Z", 1))
 	default:
 		return nil
 	}
 	tmpl := NewElement("PropertyTemplate")
-	tmplName := "Fbx" + map[string]string{
-		"Model":    "Node",
-		"Material": "SurfacePhong",
-	}[name]
 	tmpl.AddProperty(NewStringProperty(tmplName))
 	tmpl.AddChild(p70)
 	return tmpl

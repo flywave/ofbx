@@ -17,6 +17,12 @@ import (
 // (cubic interpolation, auto tangents); see the FBX SDK KFCurve flags.
 const animationKeyAttrFlags = 24836
 
+// takeEntry remembers a created animation stack for the Takes section.
+type takeEntry struct {
+	name                  string
+	localStart, localStop int64
+}
+
 // NewAnimationStack creates an animation stack. LocalStart/LocalStop bound
 // the stack in FBX time (KTime units).
 func (d *Document) NewAnimationStack(name string, localStart, localStop int64) *AnimationStack {
@@ -36,8 +42,39 @@ func (d *Document) NewAnimationStack(name string, localStart, localStop int64) *
 	d.register(id, stack)
 	d.objs.AddChild(el)
 	d.scene.AnimationStacks = append(d.scene.AnimationStacks, stack)
+	d.animTakes = append(d.animTakes, takeEntry{name: name, localStart: localStart, localStop: localStop})
 	d.countType("AnimationStack")
 	return stack
+}
+
+// syncTakes writes the legacy Takes section for the created animation
+// stacks (still read by many importers to enumerate takes). Scenes exported
+// through SaveScene keep their original Takes subtree.
+func (d *Document) syncTakes() {
+	if len(d.animTakes) == 0 {
+		return
+	}
+	d.root.RemoveChild("Takes")
+	takes := d.root.AddChildElement("Takes")
+	takes.AddChildElement("Current", NewStringProperty(d.animTakes[0].name))
+	for _, tk := range d.animTakes {
+		take := takes.AddChildElement("Take", NewStringProperty(tk.name))
+		take.AddChildElement("FileName", NewStringProperty(takeFileName(tk.name)))
+		take.AddChildElement("LocalTime", NewInt64Property(tk.localStart), NewInt64Property(tk.localStop))
+		take.AddChildElement("ReferenceTime", NewInt64Property(tk.localStart), NewInt64Property(tk.localStop))
+	}
+}
+
+// takeFileName derives the conventional .tak file name for a take.
+func takeFileName(name string) string {
+	out := make([]rune, 0, len(name))
+	for _, r := range name {
+		if r == ' ' {
+			r = '_'
+		}
+		out = append(out, r)
+	}
+	return string(out) + ".tak"
 }
 
 // NewAnimationLayer creates an animation layer inside the stack.
@@ -126,7 +163,8 @@ func (d *Document) NewAnimationCurve(name string, times []time.Duration, values 
 
 // NewAnimationCurveNode binds up to three curves (X/Y/Z) to one property of
 // an animated object. property is the FBX property name, e.g.
-// "Lcl Translation". Curves may be nil.
+// "Lcl Translation". Curves may be nil. The special property "FocalLength"
+// binds a single curve instead of an xyz triple.
 func (d *Document) NewAnimationCurveNode(name string, layer *AnimationLayer, target Obj, property string, curves [3]*AnimationCurve) (*AnimationCurveNode, error) {
 	if target == nil || target.Element() == nil {
 		return nil, errors.New("ofbx: animation curve node needs a target object")
@@ -149,12 +187,19 @@ func (d *Document) NewAnimationCurveNode(name string, layer *AnimationLayer, tar
 
 	node.Bone = target
 	node.BoneLinkProp = property
-	for i, curve := range curves {
-		if curve == nil {
-			continue
+	if property == "FocalLength" {
+		if curves[0] != nil {
+			node.Curves[0].Curve = curves[0]
+			d.connect(curves[0], node, "FocalLength")
 		}
-		node.Curves[i].Curve = curve
-		d.connect(curve, node, [3]string{"d|X", "d|Y", "d|Z"}[i])
+	} else {
+		for i, curve := range curves {
+			if curve == nil {
+				continue
+			}
+			node.Curves[i].Curve = curve
+			d.connect(curve, node, [3]string{"d|X", "d|Y", "d|Z"}[i])
+		}
 	}
 	d.connect(node, layer, "")
 	d.connect(node, target, property)
@@ -188,8 +233,9 @@ func (d *Document) NewSkin(m *Mesh) (*Skin, error) {
 
 // NewCluster adds a cluster to a skin. indices reference control points of
 // the skinned geometry; weights are parallel to indices. transformLink is
-// the bone's bind pose matrix in mesh space (row-major 4x4).
-func (d *Document) NewCluster(skin *Skin, link Obj, indices []int, weights []float64, transformLink Matrix) (*Cluster, error) {
+// the bone's bind pose matrix in mesh space (row-major 4x4); an optional
+// transform argument supplies the mesh's bind pose matrix.
+func (d *Document) NewCluster(skin *Skin, link Obj, indices []int, weights []float64, transformLink Matrix, transform ...Matrix) (*Cluster, error) {
 	if skin == nil {
 		return nil, errors.New("ofbx: cluster needs a skin")
 	}
@@ -221,6 +267,14 @@ func (d *Document) NewCluster(skin *Skin, link Obj, indices []int, weights []flo
 	el.AddChildElement("Indexes", idxProp)
 	el.AddChildElement("Weights", weightProp)
 	el.AddChildElement("TransformLink", linkProp)
+	if len(transform) > 0 {
+		tArr := transform[0].ToArray()
+		tProp, err := NewDoubleArrayProperty(tArr[:], d.CompressArrays)
+		if err != nil {
+			return nil, err
+		}
+		el.AddChildElement("Transform", tProp)
+	}
 
 	cluster, err := parseCluster(d.scene, el)
 	if err != nil {

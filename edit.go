@@ -24,6 +24,41 @@ func SyncMaterial(mat *Material) {
 	el.AddChild(materialProperties70(mat))
 }
 
+// Rename changes an object's name, preserving the "\x00\x01<Type>" suffix
+// FBX stores in the name property.
+func Rename(o Obj, name string) error {
+	if o == nil || o.Element() == nil {
+		return errors.New("ofbx: object has no element")
+	}
+	p := o.Element().getProperty(1)
+	if p == nil {
+		return errors.New("ofbx: object element has no name property")
+	}
+	if i := strings.Index(p.value.String(), "\x00\x01"); i >= 0 {
+		name += p.value.String()[i:]
+	}
+	o.Element().Properties[1] = NewStringProperty(name)
+	return nil
+}
+
+// SetTextureFilename rewrites a texture's absolute and relative file names.
+func SetTextureFilename(tex *Texture, filename, relative string) {
+	if tex == nil || tex.Element() == nil {
+		return
+	}
+	el := tex.Element()
+	if filename != "" {
+		fn := NewElement("FileName")
+		fn.AddProperty(NewStringProperty(filename))
+		el.ReplaceChild("FileName", fn)
+	}
+	if relative != "" {
+		rf := NewElement("RelativeFilename")
+		rf.AddProperty(NewStringProperty(relative))
+		el.ReplaceChild("RelativeFilename", rf)
+	}
+}
+
 // SetLclVec3 writes a three component Properties70 entry (adding or
 // replacing) on the object's element, e.g. "Lcl Translation".
 func SetLclVec3(o Obj, name string, v floatgeom.Point3) error {
@@ -164,6 +199,14 @@ func RebuildGeometryElement(m *Mesh) error {
 	}
 
 	// strip Geometric* props from the model: the transform is already baked
+	// refresh the raw retention from the rebuilt element so later reads and
+	// comparisons see the new source of truth
+	g.raw.vertices = flat
+	g.raw.indices = make([]int, 0, len(indices))
+	for _, idx := range indices {
+		g.raw.indices = append(g.raw.indices, int(idx))
+	}
+
 	stripProperties(m, "GeometricTranslation", "GeometricRotation", "GeometricScaling")
 	return nil
 }
