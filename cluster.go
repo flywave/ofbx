@@ -81,6 +81,10 @@ func (c *Cluster) postProcess() bool {
 	c.Indices = make([]int, 0, iLen)
 
 	for i := 0; i < iLen; i++ {
+		if oldIndices[i] < 0 || oldIndices[i] >= len(geom.newVerts) {
+			// corrupt index: fail the cluster instead of panicking
+			return false
+		}
 		n := &geom.newVerts[oldIndices[i]] //was a geometryimpl NewVertex
 		if n.index == -1 {
 			continue // skip vertices which aren't indexed.

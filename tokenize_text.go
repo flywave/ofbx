@@ -3,6 +3,8 @@ package ofbx
 import (
 	"bytes"
 	"io"
+	"strconv"
+	"strings"
 	"unicode"
 
 	"github.com/pkg/errors"
@@ -68,6 +70,32 @@ func isTextTokenChar(c rune) bool {
 	return unicode.IsDigit(c) || unicode.IsLetter(c) || c == '_'
 }
 
+// tokenizeText parses a whole ASCII FBX stream into an element tree.
+func tokenizeText(cursor *Cursor) (*Element, error) {
+	root := &Element{}
+	for {
+		if err := cursor.skipWhitespaces(); err != nil {
+			// EOF (or a stream of trailing whitespace) ends the document
+			break
+		}
+		child, err := cursor.ReadTextElement()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return nil, errors.Wrap(err, "ofbx: parsing text element")
+		}
+		if child == nil {
+			break
+		}
+		root.Children = append(root.Children, child)
+	}
+	if len(root.Children) == 0 {
+		return nil, errors.New("ofbx: no elements found in text FBX input")
+	}
+	return root, nil
+}
+
 func (c *Cursor) readTextToken() (*DataView, error) {
 	out := bytes.NewBuffer([]byte{})
 	for {
@@ -86,7 +114,6 @@ func (c *Cursor) readTextToken() (*DataView, error) {
 }
 
 func (c *Cursor) readTextProperty() (*Property, error) {
-	//fmt.Println("Reading text property")
 	prop := &Property{}
 
 	r, _, err := c.ReadRune()
@@ -94,8 +121,7 @@ func (c *Cursor) readTextProperty() (*Property, error) {
 		return nil, err
 	}
 	if r == '"' {
-		//fmt.Println("Quote start")
-		prop.Type = 'S'
+		prop.Type = STRING
 		val := bytes.NewBuffer([]byte{})
 		for {
 			rr, _, cerr := c.ReadRune()
@@ -104,6 +130,28 @@ func (c *Cursor) readTextProperty() (*Property, error) {
 					break //?
 				}
 				return nil, cerr
+			}
+			if rr == '\\' {
+				// escape sequence inside a string
+				esc, _, eerr := c.ReadRune()
+				if eerr != nil {
+					return nil, eerr
+				}
+				switch esc {
+				case 'n':
+					val.WriteByte('\n')
+				case 'r':
+					val.WriteByte('\r')
+				case 't':
+					val.WriteByte('\t')
+				case '"':
+					val.WriteByte('"')
+				case '\\':
+					val.WriteByte('\\')
+				default:
+					val.WriteRune(esc)
+				}
+				continue
 			}
 			if rr == '"' {
 				break
@@ -111,136 +159,233 @@ func (c *Cursor) readTextProperty() (*Property, error) {
 			val.WriteRune(rr)
 		}
 		prop.value = BufferDataView(val)
-		//fmt.Println("Quote end", prop.value.String())
-		return prop, nil
-	}
-
-	if unicode.IsDigit(r) || r == '-' {
-		//fmt.Println("Digit start")
-		prop.Type = 'L'
-		if r != '-' {
-			c.UnreadRune()
-		}
-		val := bytes.NewBuffer([]byte{})
-		for {
-			rr, _, cerr := c.ReadRune()
-			if cerr != nil {
-				if cerr == io.EOF {
-					break //?
-				}
-				return nil, cerr
-			}
-			if !unicode.IsDigit(rr) {
-				break
-			}
-			val.WriteRune(rr)
-		}
-
-		r, _, err = c.ReadRune()
-
-		if err == nil && r == '.' {
-			prop.Type = 'D'
-			val.WriteRune(r)
-			for {
-				rr, _, cerr := c.ReadRune()
-				if cerr != nil {
-					if cerr == io.EOF {
-						break //?
-					}
-					return nil, cerr
-				}
-				if !unicode.IsDigit(rr) {
-					break
-				}
-				val.WriteRune(rr)
-			}
-			r, _, err = c.ReadRune()
-			if err == nil && r == 'e' || r == 'E' {
-				// 10.5e-013
-				val.WriteRune(r)
-				r, _, err = c.ReadRune()
-				if err != nil {
-					return nil, err
-				}
-				if r != '-' || !unicode.IsDigit(r) {
-					return nil, errors.New("malformed floating point with exponent")
-				}
-				val.WriteRune(r)
-				for {
-					rr, _, err := c.ReadRune()
-					if err != nil {
-						if err == io.EOF {
-							//fmt.Println("EOF?")
-							break //?
-						}
-						return nil, err
-					}
-					if !unicode.IsDigit(rr) {
-						break
-					}
-					val.WriteRune(rr)
-				}
-			}
-		}
-		prop.value = BufferDataView(val)
-		//fmt.Println("Digits end", prop.value.String())
 		return prop, nil
 	}
 
 	if r == 'T' || r == 'Y' {
-		// WTF is this
-		//fmt.Println("WTF start")
-		prop.Type = PropertyType(r)
-		b, err := c.ReadByte()
-		prop.value = NewDataView(string(b))
-		//fmt.Println("WTF end", b)
-		return prop, err
+		// ASCII boolean literals (True/Yes); False/No are rejected below in
+		// their own branch
+		prop.Type = BOOL
+		prop.value = NewDataView("\x01")
+		return prop, nil
 	}
+	if r == 'F' || r == 'N' {
+		prop.Type = BOOL
+		prop.value = NewDataView("\x00")
+		return prop, nil
+	}
+
+	if unicode.IsDigit(r) || r == '-' || r == '+' {
+		c.UnreadRune()
+		return c.readTextNumber()
+	}
+
 	if r == '*' {
-		//fmt.Println("Asterisk start")
-		prop.Type = 'l'
-		// Vertices: *10740 { a: 14.2760353088379,... } //Pulled from original...
-		pBytes := bytes.NewBuffer([]byte{})
-		r2, _, _ := c.ReadRune()
-		pBytes.WriteRune(r2)
-		_, err := c.Peek(1)
-		for err == nil && r2 != ':' {
-			r2, _, _ = c.ReadRune()
-			pBytes.WriteRune(r2)
-			_, err = c.Peek(1)
-		}
-
-		c.skipInsignificantWhitespaces() //We assume it is insignificant, so we don't add to buffer
-
-		prop.Count = 0
-
-		isAny := false
-		_, err = c.Peek(1)
-		for err == nil && r2 != '}' {
-			if r2 == ',' {
-				if isAny {
-					prop.Count++
-				}
-				isAny = false
-			} else if !unicode.IsSpace(r2) && r2 != '\n' {
-				isAny = true
-			}
-			if r2 == '.' {
-				prop.Type = 'd'
-			}
-			r2, _, _ = c.ReadRune()
-			pBytes.WriteRune(r2)
-			_, err = c.Peek(1)
-		}
-		if isAny {
-			prop.Count++
-		}
-		prop.value = BufferDataView(pBytes)
-		//fmt.Println("Asterisk end", prop.value.String())
-		return prop, err
+		return c.readTextArray()
 	}
-	//fmt.Println("r was", string(r))
-	return nil, errors.New("TODO")
+	return nil, errors.Errorf("ofbx: unexpected character %q in text property", string(r))
+}
+
+// readTextNumber parses an optionally signed decimal with optional fraction
+// and exponent into an 'L' (integer) or 'D' (double) property.
+func (c *Cursor) readTextNumber() (*Property, error) {
+	val := bytes.NewBuffer([]byte{})
+	isDouble := false
+
+	digits := func() error {
+		for {
+			rr, _, err := c.ReadRune()
+			if err != nil {
+				if err == io.EOF {
+					return io.EOF
+				}
+				return err
+			}
+			if !unicode.IsDigit(rr) {
+				c.UnreadRune()
+				return nil
+			}
+			val.WriteRune(rr)
+		}
+	}
+
+	rr, _, err := c.ReadRune()
+	if err != nil {
+		return nil, err
+	}
+	if rr != '-' && rr != '+' {
+		c.UnreadRune()
+	} else {
+		val.WriteRune(rr)
+	}
+	if err := digits(); err == io.EOF && val.Len() <= 1 {
+		return nil, errors.New("ofbx: malformed number in text property")
+	}
+
+	rr, _, err = c.ReadRune()
+	if err == nil && rr == '.' {
+		isDouble = true
+		val.WriteRune('.')
+		if err := digits(); err == io.EOF {
+			return nil, io.EOF
+		}
+		rr, _, err = c.ReadRune()
+	}
+	if err == nil && (rr == 'e' || rr == 'E') {
+		// exponent: e[+-]digits
+		isDouble = true
+		val.WriteRune('e')
+		nr, _, eerr := c.ReadRune()
+		if eerr != nil {
+			return nil, eerr
+		}
+		if nr == '-' || nr == '+' {
+			val.WriteRune(nr)
+			nr, _, eerr = c.ReadRune()
+			if eerr != nil {
+				return nil, eerr
+			}
+		}
+		c.UnreadRune()
+		if err := digits(); err == io.EOF {
+			return nil, io.EOF
+		}
+	} else if err == nil {
+		c.UnreadRune()
+	}
+
+	text := val.String()
+	if isDouble {
+		f, perr := strconv.ParseFloat(text, 64)
+		if perr != nil {
+			return nil, errors.Wrapf(perr, "ofbx: bad float %q", text)
+		}
+		return NewFloat64Property(f), nil
+	}
+	i, perr := strconv.ParseInt(text, 10, 64)
+	if perr != nil {
+		return nil, errors.Wrapf(perr, "ofbx: bad integer %q", text)
+	}
+	return NewInt64Property(i), nil
+}
+
+// readTextArray parses `*N { a: v1,v2,... }` into a binary-backed array
+// property ('i' or 'd') exactly like the binary tokenizer would produce.
+func (c *Cursor) readTextArray() (*Property, error) {
+	// element count
+	countBuf := bytes.NewBuffer([]byte{})
+	for {
+		rr, _, err := c.ReadRune()
+		if err != nil {
+			return nil, err
+		}
+		if unicode.IsDigit(rr) {
+			countBuf.WriteRune(rr)
+			continue
+		}
+		c.UnreadRune()
+		break
+	}
+	count, err := strconv.Atoi(countBuf.String())
+	if err != nil {
+		return nil, errors.Wrap(err, "ofbx: malformed array count")
+	}
+	if count < 0 || int64(count)*8 > maxArrayBytes {
+		return nil, errors.Errorf("ofbx: text array count %d exceeds limit", count)
+	}
+
+	if err := c.skipWhitespaces(); err != nil {
+		return nil, err
+	}
+	rr, _, err := c.ReadRune()
+	if err != nil {
+		return nil, err
+	}
+	if rr != '{' {
+		return nil, errors.New("ofbx: expected '{' after array count")
+	}
+	if err := c.skipWhitespaces(); err != nil {
+		return nil, err
+	}
+	// "a:" prefix (some writers use "a:" only)
+	rr, _, err = c.ReadRune()
+	if err != nil {
+		return nil, err
+	}
+	if rr != 'a' {
+		return nil, errors.New("ofbx: expected 'a:' in array literal")
+	}
+	rr, _, err = c.ReadRune()
+	if err != nil {
+		return nil, err
+	}
+	if rr != ':' {
+		return nil, errors.New("ofbx: expected 'a:' in array literal")
+	}
+	c.skipInsignificantWhitespaces()
+
+	ints := make([]int64, 0, count)
+	doubles := make([]float64, 0, count)
+	isDouble := false
+	numBuf := bytes.NewBuffer([]byte{})
+	flush := func() error {
+		defer numBuf.Reset()
+		if numBuf.Len() == 0 {
+			return nil
+		}
+		text := numBuf.String()
+		if !isDouble && !strings.ContainsAny(text, ".eE") {
+			v, perr := strconv.ParseInt(text, 10, 64)
+			if perr != nil {
+				return errors.Wrapf(perr, "ofbx: bad array integer %q", text)
+			}
+			ints = append(ints, v)
+			doubles = append(doubles, float64(v)) // kept in sync in case a later value is a float
+			return nil
+		}
+		isDouble = true
+		v, perr := strconv.ParseFloat(text, 64)
+		if perr != nil {
+			return errors.Wrapf(perr, "ofbx: bad array float %q", text)
+		}
+		doubles = append(doubles, v)
+		return nil
+	}
+
+	for {
+		rr, _, err := c.ReadRune()
+		if err != nil {
+			return nil, err
+		}
+		switch {
+		case rr == ',' || unicode.IsSpace(rr):
+			if err := flush(); err != nil {
+				return nil, err
+			}
+		case rr == '}':
+			if err := flush(); err != nil {
+				return nil, err
+			}
+			goto done
+		case rr == '-' || rr == '+' || unicode.IsDigit(rr) || rr == '.' || rr == 'e' || rr == 'E':
+			numBuf.WriteRune(rr)
+		default:
+			return nil, errors.Errorf("ofbx: unexpected character %q in array literal", string(rr))
+		}
+		if len(ints) > count && len(doubles) > count {
+			return nil, errors.Errorf("ofbx: array literal holds more than %d values", count)
+		}
+	}
+done:
+	if len(ints) != count && len(doubles) != count {
+		return nil, errors.Errorf("ofbx: array claims %d values, found %d", count, len(doubles))
+	}
+	if isDouble {
+		return NewDoubleArrayProperty(doubles, false)
+	}
+	i64s := make([]int64, count)
+	copy(i64s, ints)
+	return NewInt64ArrayProperty(i64s, false)
 }
 
 func (c *Cursor) ReadTextElement() (*Element, error) {
@@ -258,10 +403,9 @@ func (c *Cursor) ReadTextElement() (*Element, error) {
 	if r != ':' {
 		return nil, errors.New("Unexpected end of file")
 	}
-	//fmt.Println("Skip whitespaces start")
-	if err = c.skipWhitespaces(); err != nil {
-		return nil, err
-	}
+	// skip spaces, tabs and comment lines after the colon, but keep the
+	// newline significant: `Name:\n` terminates a property-less element
+	c.skipSpacesAndComments()
 
 	element := &Element{}
 	element.ID = id
@@ -302,7 +446,8 @@ func (c *Cursor) ReadTextElement() (*Element, error) {
 	if err != nil {
 		return nil, err
 	}
-	if r == '{' {
+	switch r {
+	case '{':
 		c.skipWhitespaces()
 		for {
 			by, err := c.Peek(1)
@@ -324,8 +469,29 @@ func (c *Cursor) ReadTextElement() (*Element, error) {
 
 			element.Children = append(element.Children, child)
 		}
-	} else {
+	case '\n':
+		// newline terminates a property-less element; consume it
+	default:
 		c.UnreadRune()
 	}
 	return element, nil
+}
+
+// skipSpacesAndComments consumes blanks, tabs and ';'-comment lines without
+// touching newlines, which stay meaningful as element terminators.
+func (c *Cursor) skipSpacesAndComments() {
+	for {
+		by, err := c.Peek(1)
+		if err != nil {
+			return
+		}
+		switch by[0] {
+		case ' ', '\t', '\r':
+			c.Discard(1)
+		case ';':
+			c.skipLine()
+		default:
+			return
+		}
+	}
 }

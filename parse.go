@@ -11,6 +11,31 @@ import (
 	"github.com/pkg/errors"
 )
 
+// maxArrayBytes caps total decoded array payload; corrupt count fields fail
+// with an error instead of a huge allocation. 16 MiB accommodates meshes of
+// roughly 600k vertices (xyz doubles) with headroom.
+const maxArrayBytes = 1 << 24 // 16 MiB
+
+// validateArrayCount guards the decoded size of an array property.
+func validateArrayCount(property *Property) error {
+	if property.Count < 0 {
+		return errors.New("ofbx: negative array count")
+	}
+	size := int64(property.Count) * int64(property.Type.Size())
+	if size > maxArrayBytes {
+		return errors.Errorf("ofbx: array of %d x %d bytes exceeds limit", property.Count, property.Type.Size())
+	}
+	if property.Encoding == 0 {
+		// uncompressed arrays must be fully backed by their payload; a lying
+		// count would otherwise trigger a huge zero-filled allocation
+		if size != int64(property.value.Len()) {
+			return errors.Errorf("ofbx: uncompressed array of %d elements is backed by %d payload bytes",
+				property.Count, property.value.Len())
+		}
+	}
+	return nil
+}
+
 func ParseTemplates(root *Element) {
 	defs := findChildren(root, "Definitions")
 	if len(defs) == 0 {
@@ -127,6 +152,9 @@ func parseArrayRawInt(property *Property) ([]int, error) {
 	if property.Type == 'd' || property.Type == 'f' {
 		return nil, errors.New("Invalid type, expected i or l")
 	}
+	if err := validateArrayCount(property); err != nil {
+		return nil, err
+	}
 	switch property.Encoding {
 	case 0:
 		return parseArrayRawIntEnd(property.value, property.Count, property.Type.Size()), nil
@@ -164,6 +192,9 @@ func parseArrayRawInt64(property *Property) ([]int64, error) {
 	if property.Type == 'd' || property.Type == 'f' {
 		return nil, errors.New("Invalid type, expected i or l")
 	}
+	if err := validateArrayCount(property); err != nil {
+		return nil, err
+	}
 	switch property.Encoding {
 	case 0:
 		return parseArrayRawInt64End(property.value, property.Count, property.Type.Size()), nil
@@ -195,7 +226,20 @@ func parseArrayRawInt64End(r io.Reader, ln int, elemSize int) []int64 {
 
 func parseArrayRawFloat32(property *Property) ([]float32, error) {
 	if property.Type == 'i' || property.Type == 'l' {
-		return nil, errors.New("Invalid type, expected d or f")
+		// see parseArrayRawFloat64: integer-valued float arrays re-read from
+		// text FBX come back typed as ints
+		ints, err := parseArrayRawInt64(property)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]float32, len(ints))
+		for i, v := range ints {
+			out[i] = float32(v)
+		}
+		return out, nil
+	}
+	if err := validateArrayCount(property); err != nil {
+		return nil, err
 	}
 	switch property.Encoding {
 	case 0:
@@ -228,7 +272,20 @@ func parseArrayRawFloat32End(r io.Reader, ln int, elemSize int) []float32 {
 
 func parseArrayRawFloat64(property *Property) ([]float64, error) {
 	if property.Type == 'i' || property.Type == 'l' {
-		return nil, errors.New("Invalid type, expected d or f")
+		// text FBX re-parsing loses type hints: integer-valued float arrays
+		// come back as int arrays; converting is lossless
+		ints, err := parseArrayRawInt64(property)
+		if err != nil {
+			return nil, err
+		}
+		out := make([]float64, len(ints))
+		for i, v := range ints {
+			out[i] = float64(v)
+		}
+		return out, nil
+	}
+	if err := validateArrayCount(property); err != nil {
+		return nil, err
 	}
 	switch property.Encoding {
 	case 0:
@@ -419,43 +476,43 @@ func parseMaterial(scene *Scene, element *Element) *Material {
 		// but haven't seen
 		switch v {
 		case "EmissiveColor":
-			material.EmissiveColor.R = float32(elem.getProperty(4).value.toDouble())
-			material.EmissiveColor.G = float32(elem.getProperty(5).value.toDouble())
-			material.EmissiveColor.B = float32(elem.getProperty(6).value.toDouble())
+			material.EmissiveColor.R = float32(propFloat(elem.getProperty(4)))
+			material.EmissiveColor.G = float32(propFloat(elem.getProperty(5)))
+			material.EmissiveColor.B = float32(propFloat(elem.getProperty(6)))
 		case "AmbientColor":
-			material.AmbientColor.R = float32(elem.getProperty(4).value.toDouble())
-			material.AmbientColor.G = float32(elem.getProperty(5).value.toDouble())
-			material.AmbientColor.B = float32(elem.getProperty(6).value.toDouble())
+			material.AmbientColor.R = float32(propFloat(elem.getProperty(4)))
+			material.AmbientColor.G = float32(propFloat(elem.getProperty(5)))
+			material.AmbientColor.B = float32(propFloat(elem.getProperty(6)))
 		case "DiffuseColor":
-			material.DiffuseColor.R = float32(elem.getProperty(4).value.toDouble())
-			material.DiffuseColor.G = float32(elem.getProperty(5).value.toDouble())
-			material.DiffuseColor.B = float32(elem.getProperty(6).value.toDouble())
+			material.DiffuseColor.R = float32(propFloat(elem.getProperty(4)))
+			material.DiffuseColor.G = float32(propFloat(elem.getProperty(5)))
+			material.DiffuseColor.B = float32(propFloat(elem.getProperty(6)))
 		case "TransparentColor":
-			material.TransparentColor.R = float32(elem.getProperty(4).value.toDouble())
-			material.TransparentColor.G = float32(elem.getProperty(5).value.toDouble())
-			material.TransparentColor.B = float32(elem.getProperty(6).value.toDouble())
+			material.TransparentColor.R = float32(propFloat(elem.getProperty(4)))
+			material.TransparentColor.G = float32(propFloat(elem.getProperty(5)))
+			material.TransparentColor.B = float32(propFloat(elem.getProperty(6)))
 		case "SpecularColor":
-			material.SpecularColor.R = float32(elem.getProperty(4).value.toDouble())
-			material.SpecularColor.G = float32(elem.getProperty(5).value.toDouble())
-			material.SpecularColor.B = float32(elem.getProperty(6).value.toDouble())
+			material.SpecularColor.R = float32(propFloat(elem.getProperty(4)))
+			material.SpecularColor.G = float32(propFloat(elem.getProperty(5)))
+			material.SpecularColor.B = float32(propFloat(elem.getProperty(6)))
 		case "ReflectionColor":
-			material.ReflectionColor.R = float32(elem.getProperty(4).value.toDouble())
-			material.ReflectionColor.G = float32(elem.getProperty(5).value.toDouble())
-			material.ReflectionColor.B = float32(elem.getProperty(6).value.toDouble())
+			material.ReflectionColor.R = float32(propFloat(elem.getProperty(4)))
+			material.ReflectionColor.G = float32(propFloat(elem.getProperty(5)))
+			material.ReflectionColor.B = float32(propFloat(elem.getProperty(6)))
 		case "EmissiveFactor":
-			material.EmissiveFactor = elem.getProperty(4).value.toDouble()
+			material.EmissiveFactor = propFloat(elem.getProperty(4))
 		// case "AmbientFactor":
 		case "DiffuseFactor":
-			material.DiffuseFactor = elem.getProperty(4).value.toDouble()
+			material.DiffuseFactor = propFloat(elem.getProperty(4))
 		// case "TransparentFactor":
 		case "SpecularFactor":
-			material.SpecularFactor = elem.getProperty(4).value.toDouble()
+			material.SpecularFactor = propFloat(elem.getProperty(4))
 		case "ReflectionFactor":
-			material.ReflectionFactor = elem.getProperty(4).value.toDouble()
+			material.ReflectionFactor = propFloat(elem.getProperty(4))
 		case "Shininess":
-			material.Shininess = elem.getProperty(4).value.toDouble()
+			material.Shininess = propFloat(elem.getProperty(4))
 		case "ShininessExponent":
-			material.ShininessExponent = elem.getProperty(4).value.toDouble()
+			material.ShininessExponent = propFloat(elem.getProperty(4))
 		}
 	}
 	return material
@@ -506,7 +563,7 @@ func parseAnimationCurve(scene *Scene, element *Element) (*AnimationCurve, error
 
 func parseConnection(root *Element, scene *Scene) (bool, error) {
 	connections := findChildren(root, "Connections")
-	if connections == nil {
+	if len(connections) == 0 {
 		return true, nil
 	}
 
@@ -609,33 +666,33 @@ func parseGlobalSettings(root *Element, scene *Scene) {
 
 				switch p.value.String() {
 				case "UpAxis":
-					scene.Settings.UpAxis = UpVector(int(value.toInt32()))
+					scene.Settings.UpAxis = UpVector(propInt(prop4))
 				case "UpAxisSign":
-					scene.Settings.UpAxisSign = int(value.toInt32())
+					scene.Settings.UpAxisSign = propInt(prop4)
 				case "FrontAxis":
-					scene.Settings.FrontAxis = FrontVector(int(value.toInt32()))
+					scene.Settings.FrontAxis = FrontVector(propInt(prop4))
 				case "FrontAxisSign":
-					scene.Settings.FrontAxisSign = int(value.toInt32())
+					scene.Settings.FrontAxisSign = propInt(prop4)
 				case "CoordAxis":
-					scene.Settings.CoordAxis = CoordSystem(int(value.toInt32()))
+					scene.Settings.CoordAxis = CoordSystem(propInt(prop4))
 				case "CoordAxisSign":
-					scene.Settings.CoordAxisSign = int(value.toInt32())
+					scene.Settings.CoordAxisSign = propInt(prop4)
 				case "OriginalUpAxis":
-					scene.Settings.OriginalUpAxis = int(value.toInt32())
+					scene.Settings.OriginalUpAxis = propInt(prop4)
 				case "OriginalUpAxisSign":
-					scene.Settings.OriginalUpAxisSign = int(value.toInt32())
+					scene.Settings.OriginalUpAxisSign = propInt(prop4)
 				case "UnitScaleFactor":
-					scene.Settings.UnitScaleFactor = float32(value.toDouble())
+					scene.Settings.UnitScaleFactor = float32(propFloat(prop4))
 				case "OriginalUnitScaleFactor":
-					scene.Settings.OriginalUnitScaleFactor = float32(value.toDouble())
+					scene.Settings.OriginalUnitScaleFactor = float32(propFloat(prop4))
 				case "TimeSpanStart":
 					scene.Settings.TimeSpanStart = value.touint64()
 				case "TimeSpanStop":
 					scene.Settings.TimeSpanStop = value.touint64()
 				case "TimeMode":
-					scene.Settings.TimeMode = FrameRate(int(value.toInt32()))
+					scene.Settings.TimeMode = FrameRate(propInt(prop4))
 				case "CustomFrameRate":
-					scene.Settings.CustomFrameRate = value.toFloat()
+					scene.Settings.CustomFrameRate = float32(propFloat(prop4))
 				}
 			}
 			break

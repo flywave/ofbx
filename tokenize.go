@@ -56,6 +56,9 @@ func (c *Cursor) readLongString() (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if int64(length) > maxPropertyBytes {
+		return "", errors.Errorf("ofbx: string property length %d exceeds limit", length)
+	}
 	byt := make([]byte, length)
 	_, err = io.ReadFull(c, byt)
 	if err != nil {
@@ -90,10 +93,16 @@ func (c *Cursor) readElementOffset(version uint16) (uint64, error) {
 }
 
 func (c *Cursor) readBytes(length int) []byte {
+	if length < 0 || int64(length) > maxPropertyBytes {
+		return nil
+	}
 	tempArr := make([]byte, length)
-	_, err := io.ReadFull(c, tempArr)
+	n, err := io.ReadFull(c, tempArr)
 	if err != nil {
-		//fmt.Println(err)
+		// truncated stream: return only the bytes that exist so downstream
+		// length validations reject the property instead of retaining a
+		// giant zero-filled allocation
+		return tempArr[:n]
 	}
 	return tempArr
 }
@@ -110,49 +119,69 @@ func (c *Cursor) readProperty() (*Property, error) {
 	prop.Type = PropertyType(typ)
 	var val string
 	//fmt.Println("Got property type:", string(prop.typ))
+	// readFixed reads n bytes, rejecting truncated streams so the encoder
+	// never sees a scalar property with a short payload
+	readFixed := func(n int) (string, error) {
+		b := c.readBytes(n)
+		if len(b) != n {
+			return "", errors.Errorf("truncated %c property payload", typ)
+		}
+		return string(b), nil
+	}
 	switch prop.Type {
 	case 'S':
 		val, err = c.readLongString()
 	case 'Y':
-		val = string(c.readBytes(2))
+		val, err = readFixed(2)
 	case 'C':
-		val = string(c.readBytes(1))
+		val, err = readFixed(1)
 	case 'I':
-		val = string(c.readBytes(4))
+		val, err = readFixed(4)
 	case 'F':
-		val = string(c.readBytes(4))
+		val, err = readFixed(4)
 	case 'D':
-		val = string(c.readBytes(8))
+		val, err = readFixed(8)
 	case 'L':
-		val = string(c.readBytes(8))
+		val, err = readFixed(8)
 	case 'R':
 		tmp := c.readBytes(4)
+		if len(tmp) != 4 {
+			return nil, errors.New("truncated raw property header")
+		}
 		length := int(binary.LittleEndian.Uint32(tmp))
+		if int64(length) > maxPropertyBytes {
+			return nil, errors.Errorf("ofbx: raw property length %d exceeds limit", length)
+		}
 		val = string(append(tmp, c.readBytes(length)...))
 	case 'b', 'f', 'd', 'l', 'i':
 		unCompressedLength := c.readBytes(4)
 		encoding := c.readBytes(4)
 		compressedLength := c.readBytes(4)
-		length := int(binary.LittleEndian.Uint32(compressedLength))
-		if int(binary.LittleEndian.Uint32(encoding)) == 0 {
-			elemCount := int(binary.LittleEndian.Uint32(unCompressedLength))
-			switch prop.Type {
-			case 'f', 'i':
-				length = elemCount * 4
-			case 'd', 'l':
-				length = elemCount * 8
-			}
+		if len(unCompressedLength) != 4 || len(encoding) != 4 || len(compressedLength) != 4 {
+			return nil, errors.New("truncated array header")
 		}
 		prop.Encoding = binary.LittleEndian.Uint32(encoding)
 		prop.compressedLength = binary.LittleEndian.Uint32(compressedLength)
 		prop.Count = int(binary.LittleEndian.Uint32(unCompressedLength))
-		//fmt.Println("prop lengths", unCompressedLength, compressedLength, "props encoding", encoding)
+		length := int(prop.compressedLength)
+		if prop.Encoding == 0 {
+			// uncompressed: validate the claimed size before allocating
+			if int64(prop.Count)*int64(prop.Type.Size()) > maxArrayBytes {
+				return nil, errors.Errorf("array of %d x %d bytes exceeds limit", prop.Count, prop.Type.Size())
+			}
+			length = prop.Count * prop.Type.Size()
+		} else if prop.Encoding > 1 {
+			return nil, errors.Errorf("invalid array encoding %d", prop.Encoding)
+		}
 		val = string(c.readBytes(length))
+		if len(val) != length {
+			return nil, errors.New("truncated array payload")
+		}
 	default:
 		return nil, errors.New("Did not know this property:" + string(prop.Type))
 	}
 	if err != nil {
-		//fmt.Println(err)
+		return nil, err
 	}
 
 	prop.value = NewDataView(val)
@@ -197,6 +226,16 @@ func (c *Cursor) readElement(version uint16) (*Element, error) {
 	}
 	//fmt.Println("Read short string", id)
 
+	// sanity: a record must end at or after its header, and must not claim
+	// an absurd number of properties; otherwise corrupt files cause huge
+	// allocations or unterminated child loops.
+	if propCt > maxElementProps {
+		return nil, errors.Errorf("ofbx: element %q claims %d properties", id, propCt)
+	}
+	if endOffset < uint64(c.ReadSoFar()) {
+		return nil, errors.Errorf("ofbx: element %q end offset %d precedes its header", id, endOffset)
+	}
+
 	element := Element{}
 	element.ID = NewDataView(id)
 
@@ -223,6 +262,10 @@ func (c *Cursor) readElement(version uint16) (*Element, error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "ReadingChild element failed")
 		}
+		if child == nil {
+			// stream ended inside this element's children
+			return nil, errors.Errorf("ofbx: element %q ends past end of data", id)
+		}
 		element.Children = append(element.Children, child)
 		if uint64(c.ReadSoFar()) > endOffset {
 			//fmt.Println("Read past where we were supposed to!!", c.ReadSoFar(), endOffset)
@@ -236,9 +279,18 @@ func (c *Cursor) readElement(version uint16) (*Element, error) {
 	return &element, nil
 }
 
-// ErrASCII is returned when the input is a text (ASCII) FBX file. Only
-// binary FBX is currently supported.
+// ErrASCII is no longer returned: text (ASCII) FBX files are parsed since
+// the text tokenizer was wired in. The variable stays for one release so
+// existing error comparisons compile.
 var ErrASCII = errors.New("ofbx: text (ASCII) FBX files are not supported, re-export the file as binary FBX")
+
+// sanity limits guarding against corrupt or hostile files: allocations are
+// capped so that absurd length/count fields fail with an error instead of
+// exhausting memory.
+const (
+	maxPropertyBytes = 1 << 28 // 256 MiB payload per property (raw/string)
+	maxElementProps  = 1 << 24 // 16M properties per element
+)
 
 func tokenize(r io.Reader) (*Element, error) {
 	countReader := NewCountReader(r)
@@ -247,7 +299,7 @@ func tokenize(r io.Reader) (*Element, error) {
 	//fmt.Println("initial stats: ", r2.Buffered(), cursor.ReadSoFar())
 
 	if !isBinaryFBX(r2) {
-		return nil, ErrASCII
+		return tokenizeText(cursor)
 	}
 
 	var header Header

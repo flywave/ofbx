@@ -124,6 +124,59 @@ func (p *Property) getValuesInt64() ([]int64, error) {
 	return parseArrayRawInt64(p)
 }
 
+// propFloat reads a numeric property as float64 regardless of the concrete
+// type it was stored as. Text FBX loses type information (an integer "1" and
+// a double "1" are indistinguishable), and exporters also disagree about
+// whether P values are ints or doubles, so consumers must not assume.
+func propFloat(p *Property) float64 {
+	if p == nil || p.value == nil {
+		return 0
+	}
+	switch p.Type {
+	case BOOL:
+		if b := p.rawBytes(); len(b) > 0 && b[0] != 0 {
+			return 1
+		}
+		return 0
+	case INT16:
+		return float64(intN(leUint(p.rawBytes(), 2), 16))
+	case INTEGER:
+		return float64(p.value.toInt32())
+	case LONG:
+		return float64(p.value.toint64())
+	case FLOAT:
+		return float64(p.value.toFloat())
+	case DOUBLE:
+		return p.value.toDouble()
+	}
+	return 0
+}
+
+// propInt reads a numeric property as int regardless of the concrete type.
+func propInt(p *Property) int {
+	if p == nil || p.value == nil {
+		return 0
+	}
+	switch p.Type {
+	case BOOL:
+		if b := p.rawBytes(); len(b) > 0 && b[0] != 0 {
+			return 1
+		}
+		return 0
+	case INT16:
+		return int(intN(leUint(p.rawBytes(), 2), 16))
+	case INTEGER:
+		return int(p.value.toInt32())
+	case LONG:
+		return int(p.value.toint64())
+	case FLOAT:
+		return int(p.value.toFloat())
+	case DOUBLE:
+		return int(p.value.toDouble())
+	}
+	return 0
+}
+
 func findChildren(element *Element, id string) []*Element {
 	iterables := element.Children
 	for idx, val := range iterables {

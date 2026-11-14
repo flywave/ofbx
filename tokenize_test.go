@@ -166,16 +166,20 @@ func TestTokenize(t *testing.T) {
 }
 
 func TestTokenizeNonBinary(t *testing.T) {
-	// Test with ASCII FBX format (should fail)
+	// text FBX parses through the ASCII tokenizer
 	asciiData := []byte(`; FBX 7.4.0 project file
 FBXHeaderExtension:  {
 	Version: 7400
 }`)
 
-	_, err := tokenize(bytes.NewReader(asciiData))
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "ASCII")
-	assert.True(t, err == ErrASCII, "expected ErrASCII, got %v", err)
+	root, err := tokenize(bytes.NewReader(asciiData))
+	require.NoError(t, err)
+	require.NotNil(t, root)
+	require.Len(t, root.Children, 1)
+	assert.Equal(t, "FBXHeaderExtension", root.Children[0].ID.String())
+	version := root.Children[0].Child("Version")
+	require.NotNil(t, version)
+	assert.Equal(t, int64(7400), version.Properties[0].value.toint64())
 }
 
 func TestTokenizeEmpty(t *testing.T) {

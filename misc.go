@@ -12,7 +12,7 @@ func resolveEnumProperty(object Obj, name string, defaultVal int) int {
 		return defaultVal
 	}
 
-	return int(x.value.toInt32())
+	return propInt(x)
 }
 
 func resolveVec3Property(object Obj, name string, defaultVal floatgeom.Point3) floatgeom.Point3 {
@@ -25,9 +25,9 @@ func resolveVec3Property(object Obj, name string, defaultVal floatgeom.Point3) f
 	}
 
 	return floatgeom.Point3{
-		element.getProperty(4).value.toDouble(),
-		element.getProperty(5).value.toDouble(),
-		element.getProperty(6).value.toDouble(),
+		propFloat(element.getProperty(4)),
+		propFloat(element.getProperty(5)),
+		propFloat(element.getProperty(6)),
 	}
 }
 

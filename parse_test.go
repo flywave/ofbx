@@ -7,6 +7,7 @@ import (
 
 	"github.com/oakmound/oak/v2/alg/floatgeom"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseTemplates(t *testing.T) {
@@ -62,11 +63,18 @@ func TestParseBinaryArrayFloat64(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, result)
 
-	// 测试无效类型
-	prop = &Property{Count: 1, Type: 'i', Encoding: 0}
+	// 整型数组可无损转为浮点（text FBX 回读依赖此行为）
+	ip, err := NewInt32ArrayProperty([]int32{3, -4}, false)
+	require.NoError(t, err)
+	result, err = parseBinaryArrayFloat64(ip)
+	assert.NoError(t, err)
+	assert.Equal(t, []float64{3, -4}, result)
+
+	// 非数组类型仍报错
+	prop = &Property{Count: 1, Type: 'S', Encoding: 0}
+	prop.value = NewDataView("x")
 	_, err = parseBinaryArrayFloat64(prop)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Invalid type")
 }
 
 func TestParseBinaryArrayFloat32(t *testing.T) {

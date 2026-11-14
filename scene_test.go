@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestLoadEmptyReader 测试空输入的情况
@@ -27,9 +28,15 @@ FBXHeaderExtension:  {
 	reader := bytes.NewReader(asciiFBX)
 	scene, err := Load(reader)
 
-	assert.Error(t, err)
-	assert.True(t, err == ErrASCII, "expected ErrASCII, got %v", err)
-	assert.Nil(t, scene)
+	// text FBX parses since the ASCII tokenizer was wired in
+	assert.NoError(t, err)
+	require.NotNil(t, scene)
+	require.NotNil(t, scene.RootElement)
+	header := scene.RootElement.Child("FBXHeaderExtension")
+	require.NotNil(t, header)
+	versionEl := header.Child("Version")
+	require.NotNil(t, versionEl)
+	assert.Equal(t, int64(7400), versionEl.Properties[0].value.toint64())
 }
 
 // TestLoadSceneStructure 测试场景结构是否正确初始化
@@ -118,7 +125,7 @@ func TestLoadErrorHandling(t *testing.T) {
 			expectError: true,
 		},
 		{
-			name:        "ASCII FBX",
+			name:        "comment only",
 			data:        []byte("; FBX 7.4.0 project file"),
 			expectError: true,
 		},

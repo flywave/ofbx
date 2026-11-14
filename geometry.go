@@ -1,10 +1,10 @@
 package ofbx
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/oakmound/oak/v2/alg/floatgeom"
+	"github.com/pkg/errors"
 )
 
 // VertexDataMapping dictates how the vertex is mapped
@@ -248,6 +248,17 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 	if err != nil {
 		return nil, err
 	}
+	// validate before any indexing: corrupt files must fail with an error,
+	// not a panic
+	for _, v := range origIndices {
+		idx := v
+		if idx < 0 {
+			idx = -idx - 1
+		}
+		if idx >= len(vertices) {
+			return nil, errors.Errorf("ofbx: polygon vertex index %d out of range (%d vertices)", idx, len(vertices))
+		}
+	}
 
 	geom.Faces = make([][]int, 0)
 	curFace := []int{}
@@ -277,9 +288,21 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 		geom.newVerts[i].index = -1
 	}
 
+	// append with per-list tail pointers: the naive list add is O(n) per
+	// entry, quadratic overall when a degenerate file maps every triangle
+	// vertex to one control point
+	tails := make([]*Vertex, len(geom.newVerts))
 	for i := 0; i < len(geom.oldVerts); i++ {
 		old := geom.oldVerts[i]
-		geom.newVerts[old].add(i)
+		head := &geom.newVerts[old]
+		if head.index == -1 && tails[old] == nil {
+			head.index = i
+			tails[old] = head
+			continue
+		}
+		v := &Vertex{index: i}
+		tails[old].next = v
+		tails[old] = v
 	}
 
 	// retain the raw source arrays for lossless write-back
@@ -303,25 +326,19 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 		return out
 	}
 
-	layerMaterialElements := findChildren(element, "LayerElementMaterial")
-	if len(layerMaterialElements) > 0 {
-		mappingProp := findChildProperty(layerMaterialElements[0], "MappingInformationType")
-		referenceProp := findChildProperty(layerMaterialElements[0], "ReferenceInformationType")
+	for i, matElem := range element.ChildrenOf("LayerElementMaterial") {
+		mappingProp := findChildProperty(matElem, "MappingInformationType")
+		referenceProp := findChildProperty(matElem, "ReferenceInformationType")
 		if len(mappingProp) == 0 || len(referenceProp) == 0 {
 			return nil, errors.New("invalid LayerElementMaterial")
 		}
 
-		matMapping, matReference := layerMappingStr(layerMaterialElements[0])
+		matMapping, matReference := layerMappingStr(matElem)
 		matLayer := rawLayer{kind: layerMaterial, mapping: matMapping, reference: matReference}
 
 		if mappingProp[0].value.String() == "ByPolygon" &&
 			referenceProp[0].value.String() == "IndexToDirect" {
-			geom.Materials = make([]int, len(geom.Vertices)/3)
-			for i := 0; i < len(geom.Vertices)/3; i++ {
-				geom.Materials[i] = -1
-			}
-
-			indiciesProp := findChildProperty(layerMaterialElements[0], "Materials")
+			indiciesProp := findChildProperty(matElem, "Materials")
 			if indiciesProp == nil {
 				return nil, errors.New("invalid LayerElementMaterial")
 			}
@@ -332,21 +349,26 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 			}
 			matLayer.dataI = intsToInt64(tmp)
 
-			tmpI := 0
-			triCt := 0
-			insertIdx := 0
-			for poly := 0; poly < len(tmp); poly++ {
-				triCt, tmpI = getTriCountFromPoly(origIndices, tmpI)
-				for i := 0; i < triCt; i++ {
-					geom.Materials[insertIdx] = tmp[poly]
-					insertIdx++
+			if i == 0 {
+				geom.Materials = make([]int, len(geom.Vertices)/3)
+				for j := 0; j < len(geom.Vertices)/3; j++ {
+					geom.Materials[j] = -1
+				}
+				tmpI := 0
+				triCt := 0
+				insertIdx := 0
+				for poly := 0; poly < len(tmp); poly++ {
+					triCt, tmpI = getTriCountFromPoly(origIndices, tmpI)
+					for j := 0; j < triCt; j++ {
+						geom.Materials[insertIdx] = tmp[poly]
+						insertIdx++
+					}
 				}
 			}
-		} else {
-			if mappingProp[0].value.String() != "AllSame" {
-				return nil, errors.New("mapping not supported")
-			}
 		}
+		// unsupported material mapping modes (AllSame and others) are not
+		// expanded into the processed fields but the raw layer is retained
+		// so write-back stays lossless
 		geom.raw.layers = append(geom.raw.layers, matLayer)
 	}
 
@@ -382,26 +404,27 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 
 	}
 
-	layerTangentElems := findChildren(element, "LayerElementTangents")
-	if len(layerTangentElems) > 0 {
-		tans := findChildren(layerTangentElems[0], "Tangents")
+	for i, tanElem := range element.ChildrenOf("LayerElementTangents") {
+		tans := findChildren(tanElem, "Tangents")
 		var tmp []floatgeom.Point3
 		var tmpIndices []int
 		var mapping VertexDataMapping
 		var err error
 		if len(tans) > 0 {
-			tmp, tmpIndices, mapping, err = parseVertexDataVec3(layerTangentElems[0], "Tangents", "TangentsIndex")
+			tmp, tmpIndices, mapping, err = parseVertexDataVec3(tanElem, "Tangents", "TangentsIndex")
 		} else {
-			tmp, tmpIndices, mapping, err = parseVertexDataVec3(layerTangentElems[0], "Tangent", "TangentIndex")
+			tmp, tmpIndices, mapping, err = parseVertexDataVec3(tanElem, "Tangent", "TangentIndex")
 		}
 		if err != nil {
 			return nil, err
 		}
 		if len(tmp) > 0 {
-			geom.Tangents = splatVec3(mapping, tmp, tmpIndices, origIndices)
-			RemapVec3(&geom.Tangents, toOldIndices)
+			if i == 0 {
+				geom.Tangents = splatVec3(mapping, tmp, tmpIndices, origIndices)
+				RemapVec3(&geom.Tangents, toOldIndices)
+			}
 
-			tanMapping, tanReference := layerMappingStr(layerTangentElems[0])
+			tanMapping, tanReference := layerMappingStr(tanElem)
 			tanLayer := rawLayer{kind: layerTangent, mapping: tanMapping, reference: tanReference}
 			tanLayer.dataF = make([]float64, 0, 3*len(tmp))
 			for _, p := range tmp {
@@ -414,16 +437,17 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 		}
 	}
 
-	layerColorElems := findChildren(element, "LayerElementColor")
-	if len(layerColorElems) > 0 {
-		tmp, tmpIndices, mapping, err := parseVertexDataVec4(layerColorElems[0], "Colors", "ColorIndex")
+	for i, colElem := range element.ChildrenOf("LayerElementColor") {
+		tmp, tmpIndices, mapping, err := parseVertexDataVec4(colElem, "Colors", "ColorIndex")
 		if err != nil {
 			return nil, err
 		}
 		if len(tmp) > 0 {
-			geom.Colors = splatVec4(mapping, tmp, tmpIndices, origIndices)
+			if i == 0 {
+				geom.Colors = splatVec4(mapping, tmp, tmpIndices, origIndices)
+			}
 
-			colMapping, colReference := layerMappingStr(layerColorElems[0])
+			colMapping, colReference := layerMappingStr(colElem)
 			colLayer := rawLayer{kind: layerColor, mapping: colMapping, reference: colReference}
 			colLayer.dataF = make([]float64, 0, 4*len(tmp))
 			for _, p := range tmp {
@@ -436,16 +460,17 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 		}
 	}
 
-	layerNormalElems := findChildren(element, "LayerElementNormal")
-	if len(layerNormalElems) > 0 {
-		tmp, tmpIndices, mapping, err := parseVertexDataVec3(layerNormalElems[0], "Normals", "NormalsIndex")
+	for i, nrmElem := range element.ChildrenOf("LayerElementNormal") {
+		tmp, tmpIndices, mapping, err := parseVertexDataVec3(nrmElem, "Normals", "NormalsIndex")
 		if err != nil {
 			return nil, err
 		}
 		if len(tmp) > 0 {
-			geom.Normals = splatVec3(mapping, tmp, tmpIndices, origIndices)
+			if i == 0 {
+				geom.Normals = splatVec3(mapping, tmp, tmpIndices, origIndices)
+			}
 
-			nrmMapping, nrmReference := layerMappingStr(layerNormalElems[0])
+			nrmMapping, nrmReference := layerMappingStr(nrmElem)
 			nrmLayer := rawLayer{kind: layerNormal, mapping: nrmMapping, reference: nrmReference}
 			nrmLayer.dataF = make([]float64, 0, 3*len(tmp))
 			for _, p := range tmp {
