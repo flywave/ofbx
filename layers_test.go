@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oakmound/oak/v2/alg/floatgeom"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +17,7 @@ func TestMultiLayerNormalsRetained(t *testing.T) {
 	mesh, err := doc.NewMesh("M", cubeVertices, cubeFaces)
 	require.NoError(t, err)
 	first := cubeCornerNormals()
-	second := make([]floatgeom.Point3, len(first))
+	second := make([]Point3, len(first))
 	for i := range second {
 		second[i] = first[i].MulConst(-1)
 	}
@@ -77,7 +76,7 @@ func TestSetUVsWithIndex(t *testing.T) {
 	mesh, err := doc.NewMesh("M", cubeVertices, cubeFaces)
 	require.NoError(t, err)
 
-	unique := []floatgeom.Point2{{0, 0}, {1, 0}, {1, 1}, {0, 1}}
+	unique := []Point2{{0, 0}, {1, 0}, {1, 1}, {0, 1}}
 	idx := make([]int32, 0, cornerCount(cubeFaces))
 	for _, f := range cubeFaces {
 		for i := range f {
@@ -104,9 +103,9 @@ func TestSetNormalsByVertex(t *testing.T) {
 	mesh, err := doc.NewMesh("M", cubeVertices, cubeFaces)
 	require.NoError(t, err)
 
-	perVertex := make([]floatgeom.Point3, len(cubeVertices))
+	perVertex := make([]Point3, len(cubeVertices))
 	for i := range perVertex {
-		perVertex[i] = floatgeom.Point3{0, 1, 0}
+		perVertex[i] = Point3{0, 1, 0}
 	}
 	require.NoError(t, doc.SetNormalsByVertex(mesh, perVertex))
 
@@ -117,7 +116,7 @@ func TestSetNormalsByVertex(t *testing.T) {
 	g := scene.Meshes[0].Geometry
 	require.Len(t, g.Normals, cornerCount(cubeFaces))
 	for _, n := range g.Normals {
-		assert.Equal(t, floatgeom.Point3{0, 1, 0}, n)
+		assert.Equal(t, Point3{0, 1, 0}, n)
 	}
 }
 

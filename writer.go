@@ -3,10 +3,10 @@ package ofbx
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"io"
 	"math"
-
-	"github.com/pkg/errors"
 )
 
 // Binary FBX writer. Encode serializes an Element tree (as produced by
@@ -60,7 +60,7 @@ func Encode(w io.Writer, root *Element, version uint32) error {
 		version = DefaultWriteVersion
 	case FBXVersion7100, FBXVersion7400, FBXVersion7500, FBXVersion7700:
 	default:
-		return errors.Errorf("ofbx: unsupported write version %d", version)
+		return fmt.Errorf("ofbx: unsupported write version %d", version)
 	}
 	if root == nil {
 		return errors.New("ofbx: cannot encode nil element tree")
@@ -132,14 +132,14 @@ func (enc *encoder) computeSizes(e *Element, start int) (int, error) {
 	}
 	name := e.ID.String()
 	if len(name) > 255 {
-		return 0, errors.Errorf("ofbx: element name %q exceeds 255 bytes", name)
+		return 0, fmt.Errorf("ofbx: element name %q exceeds 255 bytes", name)
 	}
 
 	propsLen := 0
 	for _, p := range e.Properties {
 		n, err := enc.propertySize(p)
 		if err != nil {
-			return 0, errors.Wrapf(err, "encoding property of element %q", name)
+			return 0, fmt.Errorf("encoding property of element %q"+": %w", name, err)
 		}
 		propsLen += n
 	}
@@ -161,10 +161,10 @@ func (enc *encoder) computeSizes(e *Element, start int) (int, error) {
 		size += enc.sentinelSize()
 	}
 	if size < 0 {
-		return 0, errors.Errorf("ofbx: element %q size overflows", name)
+		return 0, fmt.Errorf("ofbx: element %q size overflows", name)
 	}
 	if !enc.bigOffsets && start+size > math.MaxUint32 {
-		return 0, errors.Errorf("ofbx: node %q ends past 4GB; write with version >= 7500 (64-bit offsets)", name)
+		return 0, fmt.Errorf("ofbx: node %q ends past 4GB; write with version >= 7500 (64-bit offsets)", name)
 	}
 	return size, nil
 }
@@ -174,7 +174,7 @@ func (enc *encoder) computeSizes(e *Element, start int) (int, error) {
 func (enc *encoder) writeNode(buf *bytes.Buffer, e *Element, start int) error {
 	size, ok := enc.sizes[e]
 	if !ok {
-		return errors.Errorf("ofbx: internal error: size not computed for element %q", e.ID.String())
+		return fmt.Errorf("ofbx: internal error: size not computed for element %q", e.ID.String())
 	}
 	end := start + size
 
@@ -182,7 +182,7 @@ func (enc *encoder) writeNode(buf *bytes.Buffer, e *Element, start int) error {
 	for _, p := range e.Properties {
 		n, err := enc.propertySize(p)
 		if err != nil {
-			return errors.Wrapf(err, "encoding property of element %q", e.ID.String())
+			return fmt.Errorf("encoding property of element %q: %w", e.ID.String(), err)
 		}
 		propsLen += n
 	}
@@ -194,7 +194,7 @@ func (enc *encoder) writeNode(buf *bytes.Buffer, e *Element, start int) error {
 	buf.WriteString(e.ID.String())
 	for _, p := range e.Properties {
 		if err := enc.writeProperty(buf, p); err != nil {
-			return errors.Wrapf(err, "encoding property of element %q", e.ID.String())
+			return fmt.Errorf("encoding property of element %q: %w", e.ID.String(), err)
 		}
 	}
 
@@ -220,11 +220,11 @@ func arrayInfo(p *Property, dataLen int) (count, encoding int, err error) {
 		count = dataLen / p.Type.Size()
 	}
 	if p.Encoding == 0 && count*p.Type.Size() != dataLen {
-		return 0, 0, errors.Errorf("ofbx: uncompressed array %q holds %d bytes for %d elements of size %d",
+		return 0, 0, fmt.Errorf("ofbx: uncompressed array %q holds %d bytes for %d elements of size %d",
 			string(p.Type), dataLen, count, p.Type.Size())
 	}
 	if p.Encoding > 1 {
-		return 0, 0, errors.Errorf("ofbx: invalid array encoding %d", p.Encoding)
+		return 0, 0, fmt.Errorf("ofbx: invalid array encoding %d", p.Encoding)
 	}
 	return count, int(p.Encoding), nil
 }
@@ -239,7 +239,7 @@ func (enc *encoder) propertySize(p *Property) (int, error) {
 		return 1 + 4 + dataLen, nil
 	case BOOL, INT16, INTEGER, FLOAT, DOUBLE, LONG: // 'C','Y','I','F','D','L'
 		if dataLen != p.Type.Size() {
-			return 0, errors.Errorf("ofbx: scalar property %q payload is %d bytes, want %d",
+			return 0, fmt.Errorf("ofbx: scalar property %q payload is %d bytes, want %d",
 				string(p.Type), dataLen, p.Type.Size())
 		}
 		return 1 + dataLen, nil
@@ -249,7 +249,7 @@ func (enc *encoder) propertySize(p *Property) (int, error) {
 		}
 		return 1 + 12 + dataLen, nil
 	default:
-		return 0, errors.Errorf("ofbx: unsupported property type %q", string(p.Type))
+		return 0, fmt.Errorf("ofbx: unsupported property type %q", string(p.Type))
 	}
 }
 
@@ -266,7 +266,7 @@ func (enc *encoder) writeProperty(buf *bytes.Buffer, p *Property) error {
 		buf.Write(data)
 	case BOOL, INT16, INTEGER, FLOAT, DOUBLE, LONG: // 'C','Y','I','F','D','L'
 		if len(data) != p.Type.Size() {
-			return errors.Errorf("ofbx: scalar property %q payload is %d bytes, want %d",
+			return fmt.Errorf("ofbx: scalar property %q payload is %d bytes, want %d",
 				string(p.Type), len(data), p.Type.Size())
 		}
 		buf.Write(data)
@@ -280,7 +280,7 @@ func (enc *encoder) writeProperty(buf *bytes.Buffer, p *Property) error {
 		writeUint32(buf, len(data))
 		buf.Write(data)
 	default:
-		return errors.Errorf("ofbx: unsupported property type %q", string(p.Type))
+		return fmt.Errorf("ofbx: unsupported property type %q", string(p.Type))
 	}
 	return nil
 }

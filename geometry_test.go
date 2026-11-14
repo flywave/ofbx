@@ -2,8 +2,6 @@ package ofbx
 
 import (
 	"testing"
-
-	"github.com/oakmound/oak/v2/alg/floatgeom"
 )
 
 func TestNewGeometry(t *testing.T) {
@@ -53,7 +51,7 @@ func TestGeometryString(t *testing.T) {
 	}
 
 	// Test with vertices
-	geom.Vertices = []floatgeom.Point3{
+	geom.Vertices = []Point3{
 		{1, 2, 3},
 		{4, 5, 6},
 	}
@@ -64,7 +62,7 @@ func TestGeometryString(t *testing.T) {
 	}
 
 	// Test with normals
-	geom.Normals = []floatgeom.Point3{
+	geom.Normals = []Point3{
 		{0, 0, 1},
 		{0, 1, 0},
 	}
@@ -123,14 +121,14 @@ func TestGeometryApplyMatrix(t *testing.T) {
 	geom := NewGeometry(scene, element)
 
 	// Set up test vertices
-	geom.Vertices = []floatgeom.Point3{
+	geom.Vertices = []Point3{
 		{1, 0, 0},
 		{0, 1, 0},
 		{0, 0, 1},
 	}
 
 	// Set up test normals
-	geom.Normals = []floatgeom.Point3{
+	geom.Normals = []Point3{
 		{1, 0, 0},
 		{0, 1, 0},
 	}
@@ -149,7 +147,7 @@ func TestGeometryApplyMatrix(t *testing.T) {
 	geom.applyMatrix(m)
 
 	// Check if vertices were transformed correctly
-	expectedVertices := []floatgeom.Point3{
+	expectedVertices := []Point3{
 		{0, -1, 0}, // (1,0,0) -> (0,-1,0) - 90度逆时针旋转
 		{1, 0, 0},  // (0,1,0) -> (1,0,0)
 		{0, 0, 1},  // (0,0,1) -> (0,0,1)
@@ -162,7 +160,7 @@ func TestGeometryApplyMatrix(t *testing.T) {
 	}
 
 	// Check if normals were transformed correctly
-	expectedNormals := []floatgeom.Point3{
+	expectedNormals := []Point3{
 		{0, -1, 0}, // (1,0,0) -> (0,-1,0)
 		{1, 0, 0},  // (0,1,0) -> (1,0,0)
 	}
@@ -208,7 +206,7 @@ func TestGeometryWithColors(t *testing.T) {
 	geom := NewGeometry(scene, element)
 
 	// Test with colors
-	geom.Colors = []floatgeom.Point4{
+	geom.Colors = []Point4{
 		{1, 0, 0, 1},
 		{0, 1, 0, 1},
 	}
@@ -225,7 +223,7 @@ func TestGeometryWithUVs(t *testing.T) {
 	geom := NewGeometry(scene, element)
 
 	// Test with UVs
-	geom.UVs[0] = []floatgeom.Point2{
+	geom.UVs[0] = []Point2{
 		{0, 0},
 		{1, 1},
 	}
@@ -257,7 +255,7 @@ func TestGeometryStringPrefix(t *testing.T) {
 	geom := NewGeometry(scene, element)
 
 	// Test stringPrefix with custom prefix
-	geom.Vertices = []floatgeom.Point3{
+	geom.Vertices = []Point3{
 		{1, 2, 3},
 	}
 

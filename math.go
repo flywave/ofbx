@@ -3,8 +3,6 @@ package ofbx
 import (
 	"fmt"
 	"math"
-
-	"github.com/oakmound/oak/v2/alg/floatgeom"
 )
 
 // UpVector specifies which canonical axis represents up in the system (typically Y or Z).
@@ -61,7 +59,7 @@ func matrixFromSlice(fs []float64) (Matrix, error) {
 }
 
 // 添加缩放矩阵生成函数
-func ScalingMatrix(scale floatgeom.Point3) Matrix {
+func ScalingMatrix(scale Point3) Matrix {
 	m := makeIdentity()
 	m.m[0] = scale.X()
 	m.m[5] = scale.Y()
@@ -70,7 +68,7 @@ func ScalingMatrix(scale floatgeom.Point3) Matrix {
 }
 
 // 添加平移矩阵生成函数
-func TranslationMatrix(t floatgeom.Point3) Matrix {
+func TranslationMatrix(t Point3) Matrix {
 	m := makeIdentity()
 	m.m[12] = t.X()
 	m.m[13] = t.Y()
@@ -79,20 +77,20 @@ func TranslationMatrix(t floatgeom.Point3) Matrix {
 }
 
 // 添加矩阵变换方法
-func (m Matrix) MulPosition(v floatgeom.Point3) floatgeom.Point3 {
+func (m Matrix) MulPosition(v Point3) Point3 {
 	// 齐次坐标变换 (x,y,z,1)
 	x := v[0]*m.m[0] + v[1]*m.m[4] + v[2]*m.m[8] + m.m[12]
 	y := v[0]*m.m[1] + v[1]*m.m[5] + v[2]*m.m[9] + m.m[13]
 	z := v[0]*m.m[2] + v[1]*m.m[6] + v[2]*m.m[10] + m.m[14]
-	return floatgeom.Point3{x, y, z}
+	return Point3{x, y, z}
 }
 
-func (m Matrix) MulDirection(v floatgeom.Point3) floatgeom.Point3 {
+func (m Matrix) MulDirection(v Point3) Point3 {
 	// 方向变换忽略平移 (x,y,z,0)
 	x := v[0]*m.m[0] + v[1]*m.m[4] + v[2]*m.m[8]
 	y := v[0]*m.m[1] + v[1]*m.m[5] + v[2]*m.m[9]
 	z := v[0]*m.m[2] + v[1]*m.m[6] + v[2]*m.m[10]
-	return floatgeom.Point3{x, y, z}.Normalize()
+	return Point3{x, y, z}.Normalize()
 }
 
 func (m Matrix) RemoveScale() Matrix {
@@ -140,7 +138,7 @@ func (m Matrix) isZero() bool {
 	return true
 }
 
-func setTranslation(v floatgeom.Point3, m *Matrix) {
+func setTranslation(v Point3, m *Matrix) {
 	m.m[12] = v.X()
 	m.m[13] = v.Y()
 	m.m[14] = v.Z()

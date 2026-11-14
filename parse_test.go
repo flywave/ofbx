@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/oakmound/oak/v2/alg/floatgeom"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -119,7 +118,7 @@ func TestParseBinaryArrayVec2(t *testing.T) {
 	result, err = parseBinaryArrayVec2(prop)
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
-	assert.Equal(t, floatgeom.Point2{1.0, 2.0}, result[0])
+	assert.Equal(t, Point2{1.0, 2.0}, result[0])
 }
 
 func TestParseBinaryArrayVec3(t *testing.T) {
@@ -144,7 +143,7 @@ func TestParseBinaryArrayVec3(t *testing.T) {
 	result, err = parseBinaryArrayVec3(prop)
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
-	assert.Equal(t, floatgeom.Point3{1.0, 2.0, 3.0}, result[0])
+	assert.Equal(t, Point3{1.0, 2.0, 3.0}, result[0])
 }
 
 func TestParseBinaryArrayVec4(t *testing.T) {
@@ -170,7 +169,7 @@ func TestParseBinaryArrayVec4(t *testing.T) {
 	result, err = parseBinaryArrayVec4(prop)
 	assert.NoError(t, err)
 	assert.Len(t, result, 1)
-	assert.Equal(t, floatgeom.Point4{1.0, 2.0, 3.0, 4.0}, result[0])
+	assert.Equal(t, Point4{1.0, 2.0, 3.0, 4.0}, result[0])
 }
 
 func TestParseDoubleVecDataVec2(t *testing.T) {

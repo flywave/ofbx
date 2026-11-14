@@ -1,9 +1,9 @@
 package ofbx
 
 import (
+	"errors"
+	"fmt"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 // Animation and skinning constructors for Document. The FBX animation graph
@@ -102,7 +102,7 @@ func (d *Document) NewAnimationLayer(name string, stack *AnimationStack) *Animat
 // any duration unit; they are stored as FBX KTime (46186158000 per second).
 func (d *Document) NewAnimationCurve(name string, times []time.Duration, values []float32) (*AnimationCurve, error) {
 	if len(times) != len(values) {
-		return nil, errors.Errorf("ofbx: %d times but %d values", len(times), len(values))
+		return nil, fmt.Errorf("ofbx: %d times but %d values", len(times), len(values))
 	}
 	if len(times) == 0 {
 		return nil, errors.New("ofbx: empty animation curve")
@@ -243,7 +243,7 @@ func (d *Document) NewCluster(skin *Skin, link Obj, indices []int, weights []flo
 		return nil, errors.New("ofbx: cluster needs a link (bone) object")
 	}
 	if len(indices) != len(weights) {
-		return nil, errors.Errorf("ofbx: %d indices but %d weights", len(indices), len(weights))
+		return nil, fmt.Errorf("ofbx: %d indices but %d weights", len(indices), len(weights))
 	}
 
 	idxProp, err := NewInt32ArrayProperty(ints32(indices), d.CompressArrays)

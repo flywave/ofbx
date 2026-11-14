@@ -2,8 +2,6 @@ package ofbx
 
 import (
 	"io"
-
-	"github.com/oakmound/oak/v2/alg/floatgeom"
 )
 
 // Object is the top level general class in fbx
@@ -187,40 +185,40 @@ func getRotationOrder(o Obj) RotationOrder {
 	return RotationOrder(resolveEnumProperty(o, "RotationOrder", int(EulerZYX)))
 }
 
-func getRotationOffset(o Obj) floatgeom.Point3 {
-	return resolveVec3Property(o, "RotationOffset", floatgeom.Point3{})
+func getRotationOffset(o Obj) Point3 {
+	return resolveVec3Property(o, "RotationOffset", Point3{})
 }
 
-func getRotationPivot(o Obj) floatgeom.Point3 {
-	return resolveVec3Property(o, "RotationPivot", floatgeom.Point3{})
+func getRotationPivot(o Obj) Point3 {
+	return resolveVec3Property(o, "RotationPivot", Point3{})
 }
 
-func getPostRotation(o Obj) floatgeom.Point3 {
-	return resolveVec3Property(o, "PostRotation", floatgeom.Point3{})
+func getPostRotation(o Obj) Point3 {
+	return resolveVec3Property(o, "PostRotation", Point3{})
 }
 
-func getScalingOffset(o Obj) floatgeom.Point3 {
-	return resolveVec3Property(o, "ScalingOffset", floatgeom.Point3{})
+func getScalingOffset(o Obj) Point3 {
+	return resolveVec3Property(o, "ScalingOffset", Point3{})
 }
 
-func getScalingPivot(o Obj) floatgeom.Point3 {
-	return resolveVec3Property(o, "ScalingPivot", floatgeom.Point3{})
+func getScalingPivot(o Obj) Point3 {
+	return resolveVec3Property(o, "ScalingPivot", Point3{})
 }
 
-func getPreRotation(o Obj) floatgeom.Point3 {
-	return resolveVec3Property(o, "PreRotation", floatgeom.Point3{})
+func getPreRotation(o Obj) Point3 {
+	return resolveVec3Property(o, "PreRotation", Point3{})
 }
 
-func getLocalTranslation(o Obj) floatgeom.Point3 {
-	return resolveVec3Property(o, "Lcl Translation", floatgeom.Point3{})
+func getLocalTranslation(o Obj) Point3 {
+	return resolveVec3Property(o, "Lcl Translation", Point3{})
 }
 
-func getLocalRotation(o Obj) floatgeom.Point3 {
-	return resolveVec3Property(o, "Lcl Rotation", floatgeom.Point3{})
+func getLocalRotation(o Obj) Point3 {
+	return resolveVec3Property(o, "Lcl Rotation", Point3{})
 }
 
-func getLocalScaling(o Obj) floatgeom.Point3 {
-	return resolveVec3Property(o, "Lcl Scaling", floatgeom.Point3{1, 1, 1})
+func getLocalScaling(o Obj) Point3 {
+	return resolveVec3Property(o, "Lcl Scaling", Point3{1, 1, 1})
 }
 
 func getGlobalTransform(o Obj) Matrix {
@@ -238,11 +236,11 @@ func GetLocalTransform(o Obj) Matrix {
 	return evalLocalScaling(o, getLocalTranslation(o), getLocalRotation(o), getLocalScaling(o))
 }
 
-func evalLocal(o Obj, translation, rotation floatgeom.Point3) Matrix {
+func evalLocal(o Obj, translation, rotation Point3) Matrix {
 	return evalLocalScaling(o, translation, rotation, getLocalScaling(o))
 }
 
-func evalLocalScaling(o Obj, translation, rotation, scaling floatgeom.Point3) Matrix {
+func evalLocalScaling(o Obj, translation, rotation, scaling Point3) Matrix {
 	rotationPivot := getRotationPivot(o)
 	scalingPivot := getScalingPivot(o)
 	rotationOrder := getRotationOrder(o)

@@ -1,10 +1,8 @@
 package ofbx
 
 import (
+	"errors"
 	"fmt"
-
-	"github.com/oakmound/oak/v2/alg/floatgeom"
-	"github.com/pkg/errors"
 )
 
 // VertexDataMapping dictates how the vertex is mapped
@@ -32,10 +30,10 @@ type Geometry struct {
 	Object
 	Skin *Skin
 
-	Vertices, Normals, Tangents []floatgeom.Point3
+	Vertices, Normals, Tangents []Point3
 
-	UVs                 [MaxUvs][]floatgeom.Point2
-	Colors              []floatgeom.Point4
+	UVs                 [MaxUvs][]Point2
+	Colors              []Point4
 	Materials, oldVerts []int
 	newVerts            []Vertex
 	Faces               [][]int
@@ -256,7 +254,7 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 			idx = -idx - 1
 		}
 		if idx >= len(vertices) {
-			return nil, errors.Errorf("ofbx: polygon vertex index %d out of range (%d vertices)", idx, len(vertices))
+			return nil, fmt.Errorf("ofbx: polygon vertex index %d out of range (%d vertices)", idx, len(vertices))
 		}
 	}
 
@@ -274,7 +272,7 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 	}
 
 	toOldIndices := geom.triangulate(origIndices)
-	geom.Vertices = make([]floatgeom.Point3, len(geom.oldVerts))
+	geom.Vertices = make([]Point3, len(geom.oldVerts))
 
 	for i, vIdx := range geom.oldVerts {
 		v := vertices[vIdx]
@@ -386,7 +384,7 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 				return nil, err
 			}
 			if len(tmp) > 0 {
-				//uvs = [4]floatgeom.Point2{} //resize(tmpIndices.empty() ? tmp.size() : tmpIndices.size());
+				//uvs = [4]Point2{} //resize(tmpIndices.empty() ? tmp.size() : tmpIndices.size());
 				geom.UVs[uvIdx] = splatVec2(mapping, tmp, tmpIndices, origIndices)
 
 				uvMapping, uvReference := layerMappingStr(elem)
@@ -406,7 +404,7 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 
 	for i, tanElem := range element.ChildrenOf("LayerElementTangents") {
 		tans := findChildren(tanElem, "Tangents")
-		var tmp []floatgeom.Point3
+		var tmp []Point3
 		var tmpIndices []int
 		var mapping VertexDataMapping
 		var err error

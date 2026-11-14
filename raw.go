@@ -1,7 +1,5 @@
 package ofbx
 
-import "github.com/oakmound/oak/v2/alg/floatgeom"
-
 // Raw retention: while parsing, a Geometry keeps the source arrays and
 // mapping modes of its layers. The processed Vertices/Faces/UVs/... fields
 // are convenient for consumers but lossy (layer data is splatted per polygon
@@ -61,7 +59,7 @@ func (g *Geometry) RawLayers() []rawLayer {
 	return g.raw.layers
 }
 
-func flattenPoint3s(pts []floatgeom.Point3) []float64 {
+func flattenPoint3s(pts []Point3) []float64 {
 	out := make([]float64, 0, 3*len(pts))
 	for _, p := range pts {
 		out = append(out, p.X(), p.Y(), p.Z())

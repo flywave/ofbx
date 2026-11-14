@@ -2,12 +2,12 @@ package ofbx
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
 	"unicode"
-
-	"github.com/pkg/errors"
 )
 
 func (c *Cursor) IsEndLine() bool {
@@ -83,7 +83,7 @@ func tokenizeText(cursor *Cursor) (*Element, error) {
 			if err == io.EOF {
 				break
 			}
-			return nil, errors.Wrap(err, "ofbx: parsing text element")
+			return nil, fmt.Errorf("ofbx: parsing text element"+": %w", err)
 		}
 		if child == nil {
 			break
@@ -183,7 +183,7 @@ func (c *Cursor) readTextProperty() (*Property, error) {
 	if r == '*' {
 		return c.readTextArray()
 	}
-	return nil, errors.Errorf("ofbx: unexpected character %q in text property", string(r))
+	return nil, fmt.Errorf("ofbx: unexpected character %q in text property", string(r))
 }
 
 // readTextNumber parses an optionally signed decimal with optional fraction
@@ -258,13 +258,13 @@ func (c *Cursor) readTextNumber() (*Property, error) {
 	if isDouble {
 		f, perr := strconv.ParseFloat(text, 64)
 		if perr != nil {
-			return nil, errors.Wrapf(perr, "ofbx: bad float %q", text)
+			return nil, fmt.Errorf("ofbx: bad float %q"+": %w", text, perr)
 		}
 		return NewFloat64Property(f), nil
 	}
 	i, perr := strconv.ParseInt(text, 10, 64)
 	if perr != nil {
-		return nil, errors.Wrapf(perr, "ofbx: bad integer %q", text)
+		return nil, fmt.Errorf("ofbx: bad integer %q"+": %w", text, perr)
 	}
 	return NewInt64Property(i), nil
 }
@@ -288,10 +288,10 @@ func (c *Cursor) readTextArray() (*Property, error) {
 	}
 	count, err := strconv.Atoi(countBuf.String())
 	if err != nil {
-		return nil, errors.Wrap(err, "ofbx: malformed array count")
+		return nil, fmt.Errorf("ofbx: malformed array count"+": %w", err)
 	}
 	if count < 0 || int64(count)*8 > maxArrayBytes {
-		return nil, errors.Errorf("ofbx: text array count %d exceeds limit", count)
+		return nil, fmt.Errorf("ofbx: text array count %d exceeds limit", count)
 	}
 
 	if err := c.skipWhitespaces(); err != nil {
@@ -337,7 +337,7 @@ func (c *Cursor) readTextArray() (*Property, error) {
 		if !isDouble && !strings.ContainsAny(text, ".eE") {
 			v, perr := strconv.ParseInt(text, 10, 64)
 			if perr != nil {
-				return errors.Wrapf(perr, "ofbx: bad array integer %q", text)
+				return fmt.Errorf("ofbx: bad array integer %q"+": %w", text, perr)
 			}
 			ints = append(ints, v)
 			doubles = append(doubles, float64(v)) // kept in sync in case a later value is a float
@@ -346,7 +346,7 @@ func (c *Cursor) readTextArray() (*Property, error) {
 		isDouble = true
 		v, perr := strconv.ParseFloat(text, 64)
 		if perr != nil {
-			return errors.Wrapf(perr, "ofbx: bad array float %q", text)
+			return fmt.Errorf("ofbx: bad array float %q"+": %w", text, perr)
 		}
 		doubles = append(doubles, v)
 		return nil
@@ -370,15 +370,15 @@ func (c *Cursor) readTextArray() (*Property, error) {
 		case rr == '-' || rr == '+' || unicode.IsDigit(rr) || rr == '.' || rr == 'e' || rr == 'E':
 			numBuf.WriteRune(rr)
 		default:
-			return nil, errors.Errorf("ofbx: unexpected character %q in array literal", string(rr))
+			return nil, fmt.Errorf("ofbx: unexpected character %q in array literal", string(rr))
 		}
 		if len(ints) > count && len(doubles) > count {
-			return nil, errors.Errorf("ofbx: array literal holds more than %d values", count)
+			return nil, fmt.Errorf("ofbx: array literal holds more than %d values", count)
 		}
 	}
 done:
 	if len(ints) != count && len(doubles) != count {
-		return nil, errors.Errorf("ofbx: array claims %d values, found %d", count, len(doubles))
+		return nil, fmt.Errorf("ofbx: array claims %d values, found %d", count, len(doubles))
 	}
 	if isDouble {
 		return NewDoubleArrayProperty(doubles, false)

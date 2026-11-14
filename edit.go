@@ -1,10 +1,9 @@
 package ofbx
 
 import (
+	"errors"
+	"fmt"
 	"strings"
-
-	"github.com/oakmound/oak/v2/alg/floatgeom"
-	"github.com/pkg/errors"
 )
 
 // Edit-mode helpers: mutate objects of a loaded Scene in place (their element
@@ -61,7 +60,7 @@ func SetTextureFilename(tex *Texture, filename, relative string) {
 
 // SetLclVec3 writes a three component Properties70 entry (adding or
 // replacing) on the object's element, e.g. "Lcl Translation".
-func SetLclVec3(o Obj, name string, v floatgeom.Point3) error {
+func SetLclVec3(o Obj, name string, v Point3) error {
 	return setPValues(o, name, 3,
 		NewFloat64Property(v.X()), NewFloat64Property(v.Y()), NewFloat64Property(v.Z()))
 }
@@ -73,17 +72,17 @@ func SetLclDouble(o Obj, name string, v float64) error {
 }
 
 // SetTranslation sets the object's "Lcl Translation".
-func SetTranslation(o Obj, v floatgeom.Point3) error {
+func SetTranslation(o Obj, v Point3) error {
 	return SetLclVec3(o, "Lcl Translation", v)
 }
 
 // SetRotation sets the object's "Lcl Rotation" (degrees).
-func SetRotation(o Obj, deg floatgeom.Point3) error {
+func SetRotation(o Obj, deg Point3) error {
 	return SetLclVec3(o, "Lcl Rotation", deg)
 }
 
 // SetScaling sets the object's "Lcl Scaling".
-func SetScaling(o Obj, s floatgeom.Point3) error {
+func SetScaling(o Obj, s Point3) error {
 	return SetLclVec3(o, "Lcl Scaling", s)
 }
 
@@ -95,7 +94,7 @@ func setPValues(o Obj, name string, wantValues int, values ...*Property) error {
 		return errors.New("ofbx: object has no element")
 	}
 	if len(values) != wantValues {
-		return errors.Errorf("ofbx: %d values expected, got %d", wantValues, len(values))
+		return fmt.Errorf("ofbx: %d values expected, got %d", wantValues, len(values))
 	}
 
 	el := o.Element()

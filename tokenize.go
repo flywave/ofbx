@@ -4,10 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"io"
 	"strconv"
-
-	"github.com/pkg/errors"
 )
 
 // Header is a magic set of ints
@@ -57,7 +57,7 @@ func (c *Cursor) readLongString() (string, error) {
 		return "", err
 	}
 	if int64(length) > maxPropertyBytes {
-		return "", errors.Errorf("ofbx: string property length %d exceeds limit", length)
+		return "", fmt.Errorf("ofbx: string property length %d exceeds limit", length)
 	}
 	byt := make([]byte, length)
 	_, err = io.ReadFull(c, byt)
@@ -124,7 +124,7 @@ func (c *Cursor) readProperty() (*Property, error) {
 	readFixed := func(n int) (string, error) {
 		b := c.readBytes(n)
 		if len(b) != n {
-			return "", errors.Errorf("truncated %c property payload", typ)
+			return "", fmt.Errorf("truncated %c property payload", typ)
 		}
 		return string(b), nil
 	}
@@ -150,7 +150,7 @@ func (c *Cursor) readProperty() (*Property, error) {
 		}
 		length := int(binary.LittleEndian.Uint32(tmp))
 		if int64(length) > maxPropertyBytes {
-			return nil, errors.Errorf("ofbx: raw property length %d exceeds limit", length)
+			return nil, fmt.Errorf("ofbx: raw property length %d exceeds limit", length)
 		}
 		val = string(append(tmp, c.readBytes(length)...))
 	case 'b', 'f', 'd', 'l', 'i':
@@ -167,11 +167,11 @@ func (c *Cursor) readProperty() (*Property, error) {
 		if prop.Encoding == 0 {
 			// uncompressed: validate the claimed size before allocating
 			if int64(prop.Count)*int64(prop.Type.Size()) > maxArrayBytes {
-				return nil, errors.Errorf("array of %d x %d bytes exceeds limit", prop.Count, prop.Type.Size())
+				return nil, fmt.Errorf("array of %d x %d bytes exceeds limit", prop.Count, prop.Type.Size())
 			}
 			length = prop.Count * prop.Type.Size()
 		} else if prop.Encoding > 1 {
-			return nil, errors.Errorf("invalid array encoding %d", prop.Encoding)
+			return nil, fmt.Errorf("invalid array encoding %d", prop.Encoding)
 		}
 		val = string(c.readBytes(length))
 		if len(val) != length {
@@ -230,10 +230,10 @@ func (c *Cursor) readElement(version uint16) (*Element, error) {
 	// an absurd number of properties; otherwise corrupt files cause huge
 	// allocations or unterminated child loops.
 	if propCt > maxElementProps {
-		return nil, errors.Errorf("ofbx: element %q claims %d properties", id, propCt)
+		return nil, fmt.Errorf("ofbx: element %q claims %d properties", id, propCt)
 	}
 	if endOffset < uint64(c.ReadSoFar()) {
-		return nil, errors.Errorf("ofbx: element %q end offset %d precedes its header", id, endOffset)
+		return nil, fmt.Errorf("ofbx: element %q end offset %d precedes its header", id, endOffset)
 	}
 
 	element := Element{}
@@ -260,11 +260,11 @@ func (c *Cursor) readElement(version uint16) (*Element, error) {
 	for uint64(c.ReadSoFar()) < endOffset-uint64(blockSentinelLength) {
 		child, err := c.readElement(version)
 		if err != nil {
-			return nil, errors.Wrap(err, "ReadingChild element failed")
+			return nil, fmt.Errorf("ReadingChild element failed"+": %w", err)
 		}
 		if child == nil {
 			// stream ended inside this element's children
-			return nil, errors.Errorf("ofbx: element %q ends past end of data", id)
+			return nil, fmt.Errorf("ofbx: element %q ends past end of data", id)
 		}
 		element.Children = append(element.Children, child)
 		if uint64(c.ReadSoFar()) > endOffset {
@@ -278,11 +278,6 @@ func (c *Cursor) readElement(version uint16) (*Element, error) {
 	//fmt.Println("With Sentinel", uint64(c.ReadSoFar()), "versus", endOffset)
 	return &element, nil
 }
-
-// ErrASCII is no longer returned: text (ASCII) FBX files are parsed since
-// the text tokenizer was wired in. The variable stays for one release so
-// existing error comparisons compile.
-var ErrASCII = errors.New("ofbx: text (ASCII) FBX files are not supported, re-export the file as binary FBX")
 
 // sanity limits guarding against corrupt or hostile files: allocations are
 // capped so that absurd length/count fields fail with an error instead of

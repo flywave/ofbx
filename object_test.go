@@ -3,8 +3,6 @@ package ofbx
 import (
 	"bytes"
 	"testing"
-
-	"github.com/oakmound/oak/v2/alg/floatgeom"
 )
 
 func TestObjectID(t *testing.T) {
@@ -190,7 +188,7 @@ func TestGetRotationOffset(t *testing.T) {
 	}
 
 	obj := &Object{element: elem}
-	expected := floatgeom.Point3{1, 2, 3}
+	expected := Point3{1, 2, 3}
 
 	if got := getRotationOffset(obj); got != expected {
 		t.Errorf("getRotationOffset() = %v, want %v", got, expected)
@@ -202,7 +200,7 @@ func TestGetRotationOffsetDefault(t *testing.T) {
 	elem := &Element{Properties: []*Property{}}
 	obj := &Object{element: elem}
 
-	expected := floatgeom.Point3{}
+	expected := Point3{}
 	if got := getRotationOffset(obj); got != expected {
 		t.Errorf("getRotationOffset() default = %v, want %v", got, expected)
 	}
@@ -232,7 +230,7 @@ func TestGetLocalTranslation(t *testing.T) {
 	}
 
 	obj := &Object{element: elem}
-	expected := floatgeom.Point3{1, 2, 3}
+	expected := Point3{1, 2, 3}
 
 	if got := getLocalTranslation(obj); got != expected {
 		t.Errorf("getLocalTranslation() = %v, want %v", got, expected)
@@ -244,7 +242,7 @@ func TestGetLocalScalingDefault(t *testing.T) {
 	elem := &Element{Properties: []*Property{}}
 	obj := &Object{element: elem}
 
-	expected := floatgeom.Point3{1, 1, 1}
+	expected := Point3{1, 1, 1}
 	if got := getLocalScaling(obj); got != expected {
 		t.Errorf("getLocalScaling() default = %v, want %v", got, expected)
 	}

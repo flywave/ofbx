@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"compress/zlib"
+	"errors"
+	"fmt"
 	"io"
 	"math"
 	"strconv"
-
-	"github.com/pkg/errors"
 )
 
 // Text (ASCII) FBX writer. EncodeText serializes an element tree in the
@@ -65,7 +65,7 @@ func (tw *textWriter) writeElement(e *Element, depth int) error {
 			tw.out.WriteString(", ")
 		}
 		if err := tw.writeProperty(p); err != nil {
-			return errors.Wrapf(err, "encoding property of element %q", e.ID.String())
+			return fmt.Errorf("encoding property of element %q: %w", e.ID.String(), err)
 		}
 	}
 
@@ -120,7 +120,7 @@ func (tw *textWriter) writeProperty(p *Property) error {
 	case ArrayBOOL, ArrayBYTE:
 		return tw.writeArray(p, data, true)
 	default:
-		return errors.Errorf("ofbx: unsupported property type %q", string(p.Type))
+		return fmt.Errorf("ofbx: unsupported property type %q", string(p.Type))
 	}
 	return nil
 }
@@ -219,17 +219,17 @@ func decompressArray(p *Property) ([]byte, error) {
 	p.value.Seek(0, io.SeekStart)
 	zr, err := zlib.NewReader(&p.value.Reader)
 	if err != nil {
-		return nil, errors.Wrap(err, "ofbx: bad compressed array")
+		return nil, fmt.Errorf("ofbx: bad compressed array"+": %w", err)
 	}
 	defer zr.Close()
 	var buf bytes.Buffer
 	if _, err := io.Copy(&buf, zr); err != nil {
-		return nil, errors.Wrap(err, "ofbx: decompressing array")
+		return nil, fmt.Errorf("ofbx: decompressing array"+": %w", err)
 	}
 	p.value.Seek(0, io.SeekStart)
 	expected := p.Count * p.Type.Size()
 	if buf.Len() != expected {
-		return nil, errors.Errorf("ofbx: compressed array inflated to %d bytes, want %d", buf.Len(), expected)
+		return nil, fmt.Errorf("ofbx: compressed array inflated to %d bytes, want %d", buf.Len(), expected)
 	}
 	return buf.Bytes(), nil
 }

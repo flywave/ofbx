@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oakmound/oak/v2/alg/floatgeom"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -144,8 +143,8 @@ func TestReadElementGuards(t *testing.T) {
 
 // ---------- API coverage for previously untested paths ----------
 
-func vec3(x, y, z float64) floatgeom.Point3 {
-	return floatgeom.Point3{x, y, z}
+func vec3(x, y, z float64) Point3 {
+	return Point3{x, y, z}
 }
 
 // reloadDoc saves a Document and parses it back.
@@ -163,9 +162,9 @@ func TestSetVertexColors(t *testing.T) {
 	doc := NewDocument()
 	mesh, err := doc.NewMesh("C", cubeVertices, cubeFaces)
 	require.NoError(t, err)
-	pts := make([]floatgeom.Point4, 0, cornerCount(cubeFaces))
+	pts := make([]Point4, 0, cornerCount(cubeFaces))
 	for i := 0; i < cornerCount(cubeFaces); i++ {
-		pts = append(pts, floatgeom.Point4{1, 0.5, 0, 1})
+		pts = append(pts, Point4{1, 0.5, 0, 1})
 	}
 	require.NoError(t, doc.SetVertexColors(mesh, pts))
 
@@ -243,10 +242,10 @@ func TestRebuildProcessedLayerFallback(t *testing.T) {
 	// drop raw retention and element layers, then rebuild from processed data
 	g.raw = rawGeometry{}
 	g.Element().Children = nil
-	normals := make([]floatgeom.Point3, 0)
+	normals := make([]Point3, 0)
 	for _, f := range g.Faces {
 		for range f {
-			normals = append(normals, floatgeom.Point3{0, 1, 0})
+			normals = append(normals, Point3{0, 1, 0})
 		}
 	}
 	g.Normals = normals
@@ -256,7 +255,7 @@ func TestRebuildProcessedLayerFallback(t *testing.T) {
 	rg := reloaded.Meshes[0].Geometry
 	require.NotEmpty(t, rg.Normals)
 	for _, n := range rg.Normals {
-		assert.Equal(t, floatgeom.Point3{0, 1, 0}, n)
+		assert.Equal(t, Point3{0, 1, 0}, n)
 	}
 }
 

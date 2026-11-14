@@ -5,13 +5,12 @@ import (
 	"os"
 	"testing"
 
-	"github.com/oakmound/oak/v2/alg/floatgeom"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // cubeVertices/cubeFaces describe a unit quad cube (8 control points, 6 quads).
-var cubeVertices = []floatgeom.Point3{
+var cubeVertices = []Point3{
 	{-1, -1, -1}, {1, -1, -1}, {1, 1, -1}, {-1, 1, -1},
 	{-1, -1, 1}, {1, -1, 1}, {1, 1, 1}, {-1, 1, 1},
 }
@@ -34,20 +33,20 @@ func cornerCount(faces [][]int) int {
 	return n
 }
 
-func cubeCornerNormals() []floatgeom.Point3 {
-	faceNormal := func(f []int) floatgeom.Point3 {
+func cubeCornerNormals() []Point3 {
+	faceNormal := func(f []int) Point3 {
 		a := cubeVertices[f[0]]
 		b := cubeVertices[f[1]]
 		c := cubeVertices[f[2]]
 		u := a.Sub(b)
 		v := c.Sub(b)
-		return floatgeom.Point3{
+		return Point3{
 			u.Y()*v.Z() - u.Z()*v.Y(),
 			u.Z()*v.X() - u.X()*v.Z(),
 			u.X()*v.Y() - u.Y()*v.X(),
 		}
 	}
-	normals := make([]floatgeom.Point3, 0, cornerCount(cubeFaces))
+	normals := make([]Point3, 0, cornerCount(cubeFaces))
 	for _, f := range cubeFaces {
 		n := faceNormal(f)
 		for range f {
@@ -57,19 +56,19 @@ func cubeCornerNormals() []floatgeom.Point3 {
 	return normals
 }
 
-func cubeCornerUVs() []floatgeom.Point2 {
-	uvs := make([]floatgeom.Point2, 0, cornerCount(cubeFaces))
+func cubeCornerUVs() []Point2 {
+	uvs := make([]Point2, 0, cornerCount(cubeFaces))
 	for _, f := range cubeFaces {
 		for i := range f {
-			uvs = append(uvs, floatgeom.Point2{float64(i%4) / 3, 0})
+			uvs = append(uvs, Point2{float64(i%4) / 3, 0})
 		}
 	}
 	return uvs
 }
 
 // normalized returns unit length copies of the input vectors.
-func normalized(pts []floatgeom.Point3) []floatgeom.Point3 {
-	out := make([]floatgeom.Point3, len(pts))
+func normalized(pts []Point3) []Point3 {
+	out := make([]Point3, len(pts))
 	for i, p := range pts {
 		out[i] = p.Normalize()
 	}

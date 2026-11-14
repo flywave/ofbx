@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/oakmound/oak/v2/alg/floatgeom"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -36,15 +35,15 @@ func TestEditTranslationMutatesModel(t *testing.T) {
 	scene := loadScene(t, "testdata/cube.fbx")
 	mesh := scene.Meshes[0]
 
-	want := floatgeom.Point3{10, 20, 30}
+	want := Point3{10, 20, 30}
 	require.NoError(t, SetTranslation(mesh, want))
-	require.NoError(t, SetScaling(mesh, floatgeom.Point3{2, 2, 2}))
+	require.NoError(t, SetScaling(mesh, Point3{2, 2, 2}))
 
 	reloaded := saveAndReload(t, scene)
 	require.Len(t, reloaded.Meshes, 1)
 	rm := reloaded.Meshes[0]
 	assert.Equal(t, want, getLocalTranslation(rm))
-	assert.Equal(t, floatgeom.Point3{2, 2, 2}, getLocalScaling(rm))
+	assert.Equal(t, Point3{2, 2, 2}, getLocalScaling(rm))
 	// the rest of the scene is untouched
 	compareGeometries(t, mesh.Geometry, rm.Geometry)
 }
@@ -77,7 +76,7 @@ func TestEditRebuildPreservesDocLayers(t *testing.T) {
 	require.NoError(t, doc.SetNormals(mesh, cubeCornerNormals()))
 	require.NoError(t, doc.SetUVs(mesh, 0, cubeCornerUVs()))
 
-	mesh.Geometry.Vertices[0] = floatgeom.Point3{5, 5, 5}
+	mesh.Geometry.Vertices[0] = Point3{5, 5, 5}
 	require.NoError(t, RebuildGeometryElement(mesh))
 
 	data, err := doc.Bytes()
@@ -86,7 +85,7 @@ func TestEditRebuildPreservesDocLayers(t *testing.T) {
 	require.NoError(t, err)
 
 	g := scene.Meshes[0].Geometry
-	assert.Equal(t, floatgeom.Point3{5, 5, 5}, g.Vertices[0])
+	assert.Equal(t, Point3{5, 5, 5}, g.Vertices[0])
 	assert.Equal(t, normalized(cubeCornerNormals()), g.Normals)
 	assert.Equal(t, cubeCornerUVs(), g.UVs[0])
 }
@@ -99,14 +98,14 @@ func TestEditRebuildGeometry(t *testing.T) {
 	// make sure the file's normals survive as a raw layer
 	require.NotEmpty(t, mesh.Geometry.RawLayers())
 
-	mesh.Geometry.Vertices[0] = floatgeom.Point3{99, 99, 99}
+	mesh.Geometry.Vertices[0] = Point3{99, 99, 99}
 	require.NoError(t, RebuildGeometryElement(mesh))
 
 	reloaded := saveAndReload(t, scene)
 	require.Len(t, reloaded.Meshes, 1)
 	g := reloaded.Meshes[0].Geometry
 	require.NotEmpty(t, g.Vertices)
-	assert.Equal(t, floatgeom.Point3{99, 99, 99}, g.Vertices[0])
+	assert.Equal(t, Point3{99, 99, 99}, g.Vertices[0])
 	assert.Equal(t, mesh.Geometry.Faces, g.Faces)
 
 	// retained layer modes survive the rebuild
@@ -186,7 +185,7 @@ func TestSkinCreation(t *testing.T) {
 
 	bone, err := doc.NewNode("Bone", "LimbNode")
 	require.NoError(t, err)
-	require.NoError(t, SetTranslation(bone, floatgeom.Point3{0, 0.5, 0}))
+	require.NoError(t, SetTranslation(bone, Point3{0, 0.5, 0}))
 	doc.SetParent(bone, nil)
 
 	skin, err := doc.NewSkin(mesh)

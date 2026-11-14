@@ -1,8 +1,22 @@
-# ofbx 
+# ofbx
 
-`ofbx` is a library for reading and writing FBX files. FBX files contain geometry, animation, texture and material information for 3D models. 
+`ofbx` is an independent, dependency-light Go library for reading and writing
+FBX files. FBX files contain geometry, animation, texture and material
+information for 3D models.
 
-This is a Go port of [github.com/nem0/OpenFBX](https://github.com/nem0/OpenFBX), extended with a full write pipeline.
+It supports binary FBX 7.1 – 7.7 and text (ASCII) FBX, in and out, with a
+round-trip-oriented design: everything the parser understands can be written
+back losslessly, parsed scenes can be edited and re-exported, and complete
+files can be built from scratch. Malformed or hostile input fails with
+errors, never panics (allocation caps, fuzzed continuously).
+
+## Install
+
+```
+go get github.com/flywave/ofbx
+```
+
+Requires Go 1.21+. The only dependency is `testify` (tests).
 
 ## Reading
 
@@ -16,8 +30,7 @@ for _, mesh := range scene.Meshes {
 
 While parsing, geometries retain their original source arrays and layer
 mapping modes (`Geometry.RawVertices/RawIndices/RawLayers`) so files can be
-re-emitted losslessly. Malformed input fails with errors, never panics
-(guarded by fuzzing).
+re-emitted losslessly.
 
 ## Writing
 
@@ -41,7 +54,7 @@ survive verbatim:
 
 ```go
 scene, _ := ofbx.Load(r)
-ofbx.SetTranslation(scene.Meshes[0], ofbxVec(10, 0, 0))
+ofbx.SetTranslation(scene.Meshes[0], ofbx.Point3{10, 0, 0})
 ofbx.SyncMaterial(scene.Meshes[0].Materials[0])  // after editing typed fields
 ofbx.Rename(mesh, "NewName")
 scene.Meshes[0].Geometry.Vertices[0] = ...      // modify processed data...
@@ -82,8 +95,10 @@ doc.NewAnimationCurveNode("T", layer, mesh, "Lcl Translation",
 skin, _ := doc.NewSkin(mesh)
 doc.NewCluster(skin, bone, controlPointIndices, weights, transformLinkMatrix)
 
-err := doc.Save(w) // or doc.Bytes(), doc.Prepare() + EncodeText(w, doc root, v)
+err := doc.Save(w) // or doc.Bytes(), doc.Prepare() + EncodeText(w, doc.Root(), v)
 ```
+
+Runnable programs live in [examples/](examples/).
 
 ## Status
 
@@ -104,4 +119,11 @@ err := doc.Save(w) // or doc.Bytes(), doc.Prepare() + EncodeText(w, doc root, v)
 Robustness: malformed/truncated/hostile input returns errors instead of
 panicking or exhausting memory (allocation caps, fuzzed via `FuzzLoadEncode`).
 
-The internal API is still evolving.
+## History and credits
+
+This project began as a fork of the `ofbx` Go port (oakmound) of
+[nem0/OpenFBX](https://github.com/nem0/OpenFBX) and has since been rewritten
+and extended independently: a full write pipeline (binary and text encoders,
+a document builder, edit mode), ASCII reading, raw layer retention,
+animation/skinning authoring, and extensive hardening and fuzz coverage.
+The MIT license of the original code is preserved.

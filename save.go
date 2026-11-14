@@ -1,9 +1,8 @@
 package ofbx
 
 import (
+	"errors"
 	"io"
-
-	"github.com/pkg/errors"
 )
 
 // supportedObjectTypes lists the element names under Objects that the parser

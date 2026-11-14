@@ -2,11 +2,10 @@ package ofbx
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"time"
-
-	"github.com/oakmound/oak/v2/alg/floatgeom"
-	"github.com/pkg/errors"
 )
 
 // A Document assembles a complete FBX element tree for writing. Objects are
@@ -141,6 +140,13 @@ func (d *Document) Scene() *Scene {
 	return d.scene
 }
 
+// Root returns the document's element tree. Call Prepare first when the
+// document was not saved yet but the finished tree is needed (e.g. for
+// EncodeText).
+func (d *Document) Root() *Element {
+	return d.root
+}
+
 // allocID hands out the next unique object id. 0 is reserved for the scene
 // root and never returned.
 func (d *Document) allocID() uint64 {
@@ -186,17 +192,17 @@ func (d *Document) register(id uint64, o Obj) {
 
 // NewMesh creates a Model+Geometry pair. vertices holds one entry per control
 // point; faces holds vertex-index polygons (triangles or n-gons).
-func (d *Document) NewMesh(name string, vertices []floatgeom.Point3, faces [][]int) (*Mesh, error) {
+func (d *Document) NewMesh(name string, vertices []Point3, faces [][]int) (*Mesh, error) {
 	if len(vertices) == 0 {
 		return nil, errors.New("ofbx: mesh needs at least one vertex")
 	}
 	for _, f := range faces {
 		if len(f) < 3 {
-			return nil, errors.Errorf("ofbx: face with %d vertices in mesh %q", len(f), name)
+			return nil, fmt.Errorf("ofbx: face with %d vertices in mesh %q", len(f), name)
 		}
 		for _, idx := range f {
 			if idx < 0 || idx >= len(vertices) {
-				return nil, errors.Errorf("ofbx: face index %d out of range in mesh %q", idx, name)
+				return nil, fmt.Errorf("ofbx: face index %d out of range in mesh %q", idx, name)
 			}
 		}
 	}
@@ -245,7 +251,7 @@ func (d *Document) NewMesh(name string, vertices []floatgeom.Point3, faces [][]i
 
 // buildGeometryElement assembles the Geometry element for a mesh. The first
 // property (the object id) is a placeholder fixed up by the caller.
-func (d *Document) buildGeometryElement(name string, vertices []floatgeom.Point3, faces [][]int) (*Element, error) {
+func (d *Document) buildGeometryElement(name string, vertices []Point3, faces [][]int) (*Element, error) {
 	flat := make([]float64, 0, 3*len(vertices))
 	for _, v := range vertices {
 		flat = append(flat, v.X(), v.Y(), v.Z())
@@ -299,13 +305,13 @@ func (d *Document) geometryElement(m *Mesh) (*Element, error) {
 
 // SetNormals attaches a LayerElementNormal with ByPolygonVertex/Direct
 // mapping. normals must hold one entry per polygon vertex (corner).
-func (d *Document) SetNormals(m *Mesh, normals []floatgeom.Point3) error {
+func (d *Document) SetNormals(m *Mesh, normals []Point3) error {
 	geomEl, err := d.geometryElement(m)
 	if err != nil {
 		return err
 	}
 	if expected := polygonVertexCount(geomEl); len(normals) != expected {
-		return errors.Errorf("ofbx: got %d normals, mesh has %d polygon vertices", len(normals), expected)
+		return fmt.Errorf("ofbx: got %d normals, mesh has %d polygon vertices", len(normals), expected)
 	}
 	flat := flattenPoint3s(normals)
 	data, err := NewDoubleArrayProperty(flat, d.CompressArrays)
@@ -323,16 +329,16 @@ func (d *Document) SetNormals(m *Mesh, normals []floatgeom.Point3) error {
 }
 
 // SetUVs attaches a LayerElementUV with ByPolygonVertex/Direct mapping.
-func (d *Document) SetUVs(m *Mesh, set int, uvs []floatgeom.Point2) error {
+func (d *Document) SetUVs(m *Mesh, set int, uvs []Point2) error {
 	geomEl, err := d.geometryElement(m)
 	if err != nil {
 		return err
 	}
 	if set < 0 || set >= MaxUvs {
-		return errors.Errorf("ofbx: uv set %d out of range", set)
+		return fmt.Errorf("ofbx: uv set %d out of range", set)
 	}
 	if expected := polygonVertexCount(geomEl); len(uvs) != expected {
-		return errors.Errorf("ofbx: got %d uvs, mesh has %d polygon vertices", len(uvs), expected)
+		return fmt.Errorf("ofbx: got %d uvs, mesh has %d polygon vertices", len(uvs), expected)
 	}
 	flat := make([]float64, 0, 2*len(uvs))
 	for _, uv := range uvs {
@@ -354,20 +360,20 @@ func (d *Document) SetUVs(m *Mesh, set int, uvs []floatgeom.Point2) error {
 
 // SetUVsWithIndex attaches a LayerElementUV using IndexToDirect referencing:
 // uvs holds unique coordinates and uvIndex one entry per polygon vertex.
-func (d *Document) SetUVsWithIndex(m *Mesh, set int, uvs []floatgeom.Point2, uvIndex []int32) error {
+func (d *Document) SetUVsWithIndex(m *Mesh, set int, uvs []Point2, uvIndex []int32) error {
 	geomEl, err := d.geometryElement(m)
 	if err != nil {
 		return err
 	}
 	if set < 0 || set >= MaxUvs {
-		return errors.Errorf("ofbx: uv set %d out of range", set)
+		return fmt.Errorf("ofbx: uv set %d out of range", set)
 	}
 	if expected := polygonVertexCount(geomEl); len(uvIndex) != expected {
-		return errors.Errorf("ofbx: got %d uv indices, mesh has %d polygon vertices", len(uvIndex), expected)
+		return fmt.Errorf("ofbx: got %d uv indices, mesh has %d polygon vertices", len(uvIndex), expected)
 	}
 	for _, idx := range uvIndex {
 		if idx < 0 || int(idx) >= len(uvs) {
-			return errors.Errorf("ofbx: uv index %d out of range (%d uvs)", idx, len(uvs))
+			return fmt.Errorf("ofbx: uv index %d out of range (%d uvs)", idx, len(uvs))
 		}
 	}
 	flat := make([]float64, 0, 2*len(uvs))
@@ -394,13 +400,13 @@ func (d *Document) SetUVsWithIndex(m *Mesh, set int, uvs []floatgeom.Point2, uvI
 }
 
 // SetNormalsByVertex attaches per-control-point normals (ByVertice/Direct).
-func (d *Document) SetNormalsByVertex(m *Mesh, normals []floatgeom.Point3) error {
+func (d *Document) SetNormalsByVertex(m *Mesh, normals []Point3) error {
 	geomEl, err := d.geometryElement(m)
 	if err != nil {
 		return err
 	}
 	if m.Geometry == nil || len(normals) != len(m.Geometry.Vertices) {
-		return errors.Errorf("ofbx: got %d normals, mesh has %d control points", len(normals), len(m.Geometry.Vertices))
+		return fmt.Errorf("ofbx: got %d normals, mesh has %d control points", len(normals), len(m.Geometry.Vertices))
 	}
 	data, err := NewDoubleArrayProperty(flattenPoint3s(normals), d.CompressArrays)
 	if err != nil {
@@ -418,13 +424,13 @@ func (d *Document) SetNormalsByVertex(m *Mesh, normals []floatgeom.Point3) error
 
 // SetVertexColors attaches a LayerElementColor with ByPolygonVertex/Direct
 // mapping. Each color entry is (r, g, b, a).
-func (d *Document) SetVertexColors(m *Mesh, colors []floatgeom.Point4) error {
+func (d *Document) SetVertexColors(m *Mesh, colors []Point4) error {
 	geomEl, err := d.geometryElement(m)
 	if err != nil {
 		return err
 	}
 	if expected := polygonVertexCount(geomEl); len(colors) != expected {
-		return errors.Errorf("ofbx: got %d colors, mesh has %d polygon vertices", len(colors), expected)
+		return fmt.Errorf("ofbx: got %d colors, mesh has %d polygon vertices", len(colors), expected)
 	}
 	flat := make([]float64, 0, 4*len(colors))
 	for _, c := range colors {
@@ -460,10 +466,10 @@ func (d *Document) SetMaterialIndices(m *Mesh, mapping string, indices []int32) 
 	case "ByPolygon":
 		want := len(m.Geometry.Faces)
 		if len(indices) != want {
-			return errors.Errorf("ofbx: got %d material indices, mesh has %d polygons", len(indices), want)
+			return fmt.Errorf("ofbx: got %d material indices, mesh has %d polygons", len(indices), want)
 		}
 	default:
-		return errors.Errorf("ofbx: unsupported material mapping %q", mapping)
+		return fmt.Errorf("ofbx: unsupported material mapping %q", mapping)
 	}
 	data, err := NewInt32ArrayProperty(indices, d.CompressArrays)
 	if err != nil {
@@ -591,7 +597,7 @@ func (d *Document) NewTexture(name, filename, relativeFilename string) *Texture 
 // DIFFUSE, "NormalMap" for NORMAL).
 func (d *Document) SetTexture(mat *Material, tt TextureType, tex *Texture) error {
 	if tt != DIFFUSE && tt != NORMAL {
-		return errors.Errorf("ofbx: unsupported texture slot %d", tt)
+		return fmt.Errorf("ofbx: unsupported texture slot %d", tt)
 	}
 	property := "DiffuseColor"
 	if tt == NORMAL {
@@ -611,7 +617,7 @@ func (d *Document) NewNode(name, subclass string) (*Node, error) {
 	switch subclass {
 	case "LimbNode", "Null", "Root":
 	default:
-		return nil, errors.Errorf("ofbx: unsupported node subclass %q", subclass)
+		return nil, fmt.Errorf("ofbx: unsupported node subclass %q", subclass)
 	}
 
 	el := NewElement("Model")

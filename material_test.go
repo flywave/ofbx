@@ -55,19 +55,19 @@ func TestMaterialString(t *testing.T) {
 func TestMaterialWithTextures(t *testing.T) {
 	scene := &Scene{}
 	element := &Element{ID: NewDataView("test_material")}
-	
+
 	material := NewMaterial(scene, element)
-	
+
 	// Add diffuse texture
 	diffuseElement := &Element{ID: NewDataView("diffuse_texture")}
 	diffuseTexture := &Texture{Object: *NewObject(scene, diffuseElement)}
 	material.Textures[DIFFUSE] = diffuseTexture
-	
+
 	// Add normal texture
 	normalElement := &Element{ID: NewDataView("normal_texture")}
 	normalTexture := &Texture{Object: *NewObject(scene, normalElement)}
 	material.Textures[NORMAL] = normalTexture
-	
+
 	// Test that textures are set correctly
 	if material.Textures[DIFFUSE] != diffuseTexture {
 		t.Error("Diffuse texture not set correctly")
@@ -75,7 +75,7 @@ func TestMaterialWithTextures(t *testing.T) {
 	if material.Textures[NORMAL] != normalTexture {
 		t.Error("Normal texture not set correctly")
 	}
-	
+
 	// Test string output (skip due to nil filename issue)
 	// str := material.String() // This would panic due to nil filename
 }

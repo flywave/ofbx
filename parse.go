@@ -3,12 +3,10 @@ package ofbx
 import (
 	"compress/zlib"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"time"
-
-	"github.com/oakmound/oak/v2/alg/floatgeom"
-	"github.com/pkg/errors"
 )
 
 // maxArrayBytes caps total decoded array payload; corrupt count fields fail
@@ -23,13 +21,13 @@ func validateArrayCount(property *Property) error {
 	}
 	size := int64(property.Count) * int64(property.Type.Size())
 	if size > maxArrayBytes {
-		return errors.Errorf("ofbx: array of %d x %d bytes exceeds limit", property.Count, property.Type.Size())
+		return fmt.Errorf("ofbx: array of %d x %d bytes exceeds limit", property.Count, property.Type.Size())
 	}
 	if property.Encoding == 0 {
 		// uncompressed arrays must be fully backed by their payload; a lying
 		// count would otherwise trigger a huge zero-filled allocation
 		if size != int64(property.value.Len()) {
-			return errors.Errorf("ofbx: uncompressed array of %d elements is backed by %d payload bytes",
+			return fmt.Errorf("ofbx: uncompressed array of %d elements is backed by %d payload bytes",
 				property.Count, property.value.Len())
 		}
 	}
@@ -103,12 +101,12 @@ func parseBinaryArrayFloat32(property *Property) ([]float32, error) {
 	return f32s, nil
 }
 
-func parseBinaryArrayVec2(property *Property) ([]floatgeom.Point2, error) {
+func parseBinaryArrayVec2(property *Property) ([]Point2, error) {
 	f64s, err := parseBinaryArrayFloat64(property)
 	if err != nil {
 		return nil, err
 	}
-	vs := make([]floatgeom.Point2, len(f64s)/2)
+	vs := make([]Point2, len(f64s)/2)
 	for i := 0; i < len(f64s); i += 2 {
 		vs[i/2][0] = f64s[i]
 		vs[i/2][1] = f64s[i+1]
@@ -116,15 +114,15 @@ func parseBinaryArrayVec2(property *Property) ([]floatgeom.Point2, error) {
 	return vs, nil
 }
 
-func parseBinaryArrayVec3(property *Property) ([]floatgeom.Point3, error) {
+func parseBinaryArrayVec3(property *Property) ([]Point3, error) {
 	f64s, err := parseBinaryArrayFloat64(property)
 	if err != nil {
 		return nil, err
 	}
-	vs := make([]floatgeom.Point3, len(f64s)/3)
+	vs := make([]Point3, len(f64s)/3)
 	// len(f64s) should probably be divisible by 3
 	//if len(f64s)%3 != 0 {
-	//fmt.Println("Vec3 binary array not made up of floatgeom.Point3s")
+	//fmt.Println("Vec3 binary array not made up of Point3s")
 	//}
 	for i := 0; (i + 2) < len(f64s); i += 3 {
 		vs[i/3][0] = f64s[i]
@@ -133,12 +131,12 @@ func parseBinaryArrayVec3(property *Property) ([]floatgeom.Point3, error) {
 	}
 	return vs, nil
 }
-func parseBinaryArrayVec4(property *Property) ([]floatgeom.Point4, error) {
+func parseBinaryArrayVec4(property *Property) ([]Point4, error) {
 	f64s, err := parseBinaryArrayFloat64(property)
 	if err != nil {
 		return nil, err
 	}
-	vs := make([]floatgeom.Point4, len(f64s)/4)
+	vs := make([]Point4, len(f64s)/4)
 	for i := 0; i < len(f64s); i += 4 {
 		vs[i/4][0] = f64s[i]
 		vs[i/4][1] = f64s[i+1]
@@ -161,7 +159,7 @@ func parseArrayRawInt(property *Property) ([]int, error) {
 	case 1:
 		zr, err := zlib.NewReader(&property.value.Reader)
 		if err != nil {
-			return nil, errors.Wrap(err, "New Reader failed")
+			return nil, fmt.Errorf("New Reader failed"+": %w", err)
 		}
 		defer zr.Close()
 		return parseArrayRawIntEnd(zr, property.Count, property.Type.Size()), nil
@@ -201,7 +199,7 @@ func parseArrayRawInt64(property *Property) ([]int64, error) {
 	case 1:
 		zr, err := zlib.NewReader(&property.value.Reader)
 		if err != nil {
-			return nil, errors.Wrap(err, "New Reader failed")
+			return nil, fmt.Errorf("New Reader failed"+": %w", err)
 		}
 		defer zr.Close()
 		return parseArrayRawInt64End(zr, property.Count, property.Type.Size()), nil
@@ -247,7 +245,7 @@ func parseArrayRawFloat32(property *Property) ([]float32, error) {
 	case 1:
 		zr, err := zlib.NewReader(&property.value.Reader)
 		if err != nil {
-			return nil, errors.Wrap(err, "New Reader failed")
+			return nil, fmt.Errorf("New Reader failed"+": %w", err)
 		}
 		defer zr.Close()
 		return parseArrayRawFloat32End(zr, property.Count, property.Type.Size()), nil
@@ -293,7 +291,7 @@ func parseArrayRawFloat64(property *Property) ([]float64, error) {
 	case 1:
 		zr, err := zlib.NewReader(&property.value.Reader)
 		if err != nil {
-			return nil, errors.Wrap(err, "New Reader failed")
+			return nil, fmt.Errorf("New Reader failed"+": %w", err)
 		}
 		defer zr.Close()
 		return parseArrayRawFloat64End(zr, property.Count, property.Type.Size()), nil
@@ -316,7 +314,7 @@ func parseArrayRawFloat64End(r io.Reader, ln int, elemSize int) []float64 {
 	return out
 }
 
-func parseDoubleVecDataVec2(property *Property) ([]floatgeom.Point2, error) {
+func parseDoubleVecDataVec2(property *Property) ([]Point2, error) {
 	if property.Type == 'd' {
 		return parseBinaryArrayVec2(property)
 	}
@@ -325,7 +323,7 @@ func parseDoubleVecDataVec2(property *Property) ([]floatgeom.Point2, error) {
 		return nil, err
 	}
 	size := 2
-	outVec := make([]floatgeom.Point2, len(tmp)/size)
+	outVec := make([]Point2, len(tmp)/size)
 	for i := 0; i < len(tmp); i += size {
 		j := i / size
 		outVec[j][0] = float64(tmp[i])
@@ -334,7 +332,7 @@ func parseDoubleVecDataVec2(property *Property) ([]floatgeom.Point2, error) {
 	return outVec, nil
 }
 
-func parseDoubleVecDataVec3(property *Property) ([]floatgeom.Point3, error) {
+func parseDoubleVecDataVec3(property *Property) ([]Point3, error) {
 	if property.Type == 'd' {
 		return parseBinaryArrayVec3(property)
 	}
@@ -343,7 +341,7 @@ func parseDoubleVecDataVec3(property *Property) ([]floatgeom.Point3, error) {
 		return nil, err
 	}
 	size := 3
-	outVec := make([]floatgeom.Point3, len(tmp)/size)
+	outVec := make([]Point3, len(tmp)/size)
 	for i := 0; i < len(tmp); i += size {
 		j := i / size
 		outVec[j][0] = float64(tmp[i])
@@ -353,7 +351,7 @@ func parseDoubleVecDataVec3(property *Property) ([]floatgeom.Point3, error) {
 	return outVec, nil
 }
 
-func parseDoubleVecDataVec4(property *Property) ([]floatgeom.Point4, error) {
+func parseDoubleVecDataVec4(property *Property) ([]Point4, error) {
 	if property.Type == 'd' {
 		return parseBinaryArrayVec4(property)
 	}
@@ -362,7 +360,7 @@ func parseDoubleVecDataVec4(property *Property) ([]floatgeom.Point4, error) {
 		return nil, err
 	}
 	size := 4
-	outVec := make([]floatgeom.Point4, len(tmp)/size)
+	outVec := make([]Point4, len(tmp)/size)
 	for i := 0; i < len(tmp); i += size {
 		j := i / size
 		outVec[j][0] = float64(tmp[i])
@@ -373,7 +371,7 @@ func parseDoubleVecDataVec4(property *Property) ([]floatgeom.Point4, error) {
 	return outVec, nil
 }
 
-func parseVertexDataVec2(element *Element, name, idxName string) ([]floatgeom.Point2, []int, VertexDataMapping, error) {
+func parseVertexDataVec2(element *Element, name, idxName string) ([]Point2, []int, VertexDataMapping, error) {
 	idxs, mapping, dataProp, err := parseVertexDataInner(element, name, idxName)
 	if err != nil {
 		return nil, nil, mapping, err
@@ -382,7 +380,7 @@ func parseVertexDataVec2(element *Element, name, idxName string) ([]floatgeom.Po
 	return vcs, idxs, mapping, err
 }
 
-func parseVertexDataVec3(element *Element, name, idxName string) ([]floatgeom.Point3, []int, VertexDataMapping, error) {
+func parseVertexDataVec3(element *Element, name, idxName string) ([]Point3, []int, VertexDataMapping, error) {
 	idxs, mapping, dataProp, err := parseVertexDataInner(element, name, idxName)
 	if err != nil {
 		return nil, nil, mapping, err
@@ -391,7 +389,7 @@ func parseVertexDataVec3(element *Element, name, idxName string) ([]floatgeom.Po
 	return vcs, idxs, mapping, err
 }
 
-func parseVertexDataVec4(element *Element, name, idxName string) ([]floatgeom.Point4, []int, VertexDataMapping, error) {
+func parseVertexDataVec4(element *Element, name, idxName string) ([]Point4, []int, VertexDataMapping, error) {
 	idxs, mapping, dataProp, err := parseVertexDataInner(element, name, idxName)
 	if err != nil {
 		return nil, nil, mapping, err
@@ -524,25 +522,25 @@ func parseAnimationCurve(scene *Scene, element *Element) (*AnimationCurve, error
 	if attrFlags := findSingleChildProperty(element, "KeyAttrFlags"); attrFlags != nil {
 		curve.AttrFlags, err = attrFlags.getValuesInt64()
 		if err != nil {
-			return nil, errors.Wrap(err, "Invalid animation curve: attrFlags error")
+			return nil, fmt.Errorf("Invalid animation curve: attrFlags error"+": %w", err)
 		}
 	}
 	if attrData := findSingleChildProperty(element, "KeyAttrDataFloat"); attrData != nil {
 		curve.AttrData, err = attrData.getValuesF32()
 		if err != nil {
-			return nil, errors.Wrap(err, "Invalid animation curve: attrFlags error")
+			return nil, fmt.Errorf("Invalid animation curve: attrFlags error"+": %w", err)
 		}
 	}
 	if attrRefCt := findSingleChildProperty(element, "KeyAttrRefCount"); attrRefCt != nil {
 		curve.AttrRefCount, err = attrRefCt.getValuesInt64()
 		if err != nil {
-			return nil, errors.Wrap(err, "Invalid animation curve: attrFlags error")
+			return nil, fmt.Errorf("Invalid animation curve: attrFlags error"+": %w", err)
 		}
 	}
 	if times := findSingleChildProperty(element, "KeyTime"); times != nil {
 		intTimes, cerr := times.getValuesInt64()
 		if cerr != nil {
-			return nil, errors.Wrap(cerr, "Invalid animation curve: times error")
+			return nil, fmt.Errorf("Invalid animation curve: times error"+": %w", cerr)
 		}
 		curve.Times = make([]time.Duration, len(intTimes))
 		for i, v := range intTimes {

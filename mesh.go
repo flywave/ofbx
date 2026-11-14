@@ -2,8 +2,6 @@ package ofbx
 
 import (
 	"fmt"
-
-	"github.com/oakmound/oak/v2/alg/floatgeom"
 )
 
 // Mesh is a geometry made of polygon
@@ -67,9 +65,9 @@ func (m *Mesh) GetGlobalMatrix() Matrix {
 }
 
 func (m *Mesh) getGeometricMatrix() Matrix {
-	translation := resolveVec3Property(m, "GeometricTranslation", floatgeom.Point3{0, 0, 0})
-	rotation := resolveVec3Property(m, "GeometricRotation", floatgeom.Point3{0, 0, 0})
-	scale := resolveVec3Property(m, "GeometricScaling", floatgeom.Point3{1, 1, 1})
+	translation := resolveVec3Property(m, "GeometricTranslation", Point3{0, 0, 0})
+	rotation := resolveVec3Property(m, "GeometricRotation", Point3{0, 0, 0})
+	scale := resolveVec3Property(m, "GeometricScaling", Point3{1, 1, 1})
 
 	scaleMtx := makeIdentity()
 	scaleMtx.m[0] = scale.X()

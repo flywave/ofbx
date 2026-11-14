@@ -1,7 +1,5 @@
 package ofbx
 
-import "github.com/oakmound/oak/v2/alg/floatgeom"
-
 func resolveEnumProperty(object Obj, name string, defaultVal int) int {
 	element := resolveProperty(object, name)
 	if element == nil {
@@ -15,7 +13,7 @@ func resolveEnumProperty(object Obj, name string, defaultVal int) int {
 	return propInt(x)
 }
 
-func resolveVec3Property(object Obj, name string, defaultVal floatgeom.Point3) floatgeom.Point3 {
+func resolveVec3Property(object Obj, name string, defaultVal Point3) Point3 {
 	element := resolveProperty(object, name)
 	if element == nil {
 		return defaultVal
@@ -24,26 +22,26 @@ func resolveVec3Property(object Obj, name string, defaultVal floatgeom.Point3) f
 		return defaultVal
 	}
 
-	return floatgeom.Point3{
+	return Point3{
 		propFloat(element.getProperty(4)),
 		propFloat(element.getProperty(5)),
 		propFloat(element.getProperty(6)),
 	}
 }
 
-func splatVec2(mapping VertexDataMapping, data []floatgeom.Point2, indices []int, origIndices []int) (out []floatgeom.Point2) {
+func splatVec2(mapping VertexDataMapping, data []Point2, indices []int, origIndices []int) (out []Point2) {
 	switch mapping {
 	case ByPolygonVertex, ByPolygon:
 		if len(indices) == 0 {
-			out = make([]floatgeom.Point2, len(data))
+			out = make([]Point2, len(data))
 			copy(out, data)
 		} else {
-			out = make([]floatgeom.Point2, len(indices))
+			out = make([]Point2, len(indices))
 			for i := 0; i < len(indices); i++ {
 				if indices[i] < len(data) {
 					out[i] = data[indices[i]]
 				} else {
-					out[i] = floatgeom.Point2{}
+					out[i] = Point2{}
 				}
 			}
 		}
@@ -51,7 +49,7 @@ func splatVec2(mapping VertexDataMapping, data []floatgeom.Point2, indices []int
 		//  v0  v1 ...
 		// uv0 uv1 ...
 
-		out = make([]floatgeom.Point2, len(origIndices))
+		out = make([]Point2, len(origIndices))
 
 		for i := 0; i < len(origIndices); i++ {
 			idx := origIndices[i]
@@ -61,26 +59,26 @@ func splatVec2(mapping VertexDataMapping, data []floatgeom.Point2, indices []int
 			if idx < len(data) {
 				out[i] = data[idx]
 			} else {
-				out[i] = floatgeom.Point2{}
+				out[i] = Point2{}
 			}
 		}
 	}
 	return out
 }
 
-func splatVec3(mapping VertexDataMapping, data []floatgeom.Point3, indices []int, origIndices []int) (out []floatgeom.Point3) {
+func splatVec3(mapping VertexDataMapping, data []Point3, indices []int, origIndices []int) (out []Point3) {
 	switch mapping {
 	case ByPolygonVertex, ByPolygon:
 		if len(indices) == 0 {
-			out = make([]floatgeom.Point3, len(data))
+			out = make([]Point3, len(data))
 			copy(out, data)
 		} else {
-			out = make([]floatgeom.Point3, len(indices))
+			out = make([]Point3, len(indices))
 			for i := 0; i < len(indices); i++ {
 				if indices[i] < len(data) {
 					out[i] = data[indices[i]]
 				} else {
-					out[i] = floatgeom.Point3{}
+					out[i] = Point3{}
 				}
 			}
 		}
@@ -88,7 +86,7 @@ func splatVec3(mapping VertexDataMapping, data []floatgeom.Point3, indices []int
 		//  v0  v1 ...
 		// uv0 uv1 ...
 
-		out = make([]floatgeom.Point3, len(origIndices))
+		out = make([]Point3, len(origIndices))
 
 		for i := 0; i < len(origIndices); i++ {
 			idx := origIndices[i]
@@ -98,28 +96,28 @@ func splatVec3(mapping VertexDataMapping, data []floatgeom.Point3, indices []int
 			if idx < len(data) {
 				out[i] = data[idx]
 			} else {
-				out[i] = floatgeom.Point3{}
+				out[i] = Point3{}
 			}
 		}
 	default:
-		out = make([]floatgeom.Point3, len(origIndices))
+		out = make([]Point3, len(origIndices))
 	}
 	return out
 }
 
-func splatVec4(mapping VertexDataMapping, data []floatgeom.Point4, indices []int, origIndices []int) (out []floatgeom.Point4) {
+func splatVec4(mapping VertexDataMapping, data []Point4, indices []int, origIndices []int) (out []Point4) {
 	switch mapping {
 	case ByPolygonVertex, ByPolygon:
 		if len(indices) == 0 {
-			out = make([]floatgeom.Point4, len(data))
+			out = make([]Point4, len(data))
 			copy(out, data)
 		} else {
-			out = make([]floatgeom.Point4, len(indices))
+			out = make([]Point4, len(indices))
 			for i := 0; i < len(indices); i++ {
 				if indices[i] < len(data) {
 					out[i] = data[indices[i]]
 				} else {
-					out[i] = floatgeom.Point4{}
+					out[i] = Point4{}
 				}
 			}
 		}
@@ -127,7 +125,7 @@ func splatVec4(mapping VertexDataMapping, data []floatgeom.Point4, indices []int
 		//  v0  v1 ...
 		// uv0 uv1 ...
 
-		out = make([]floatgeom.Point4, len(origIndices))
+		out = make([]Point4, len(origIndices))
 
 		for i := 0; i < len(origIndices); i++ {
 			idx := origIndices[i]
@@ -137,59 +135,59 @@ func splatVec4(mapping VertexDataMapping, data []floatgeom.Point4, indices []int
 			if idx < len(data) {
 				out[i] = data[idx]
 			} else {
-				out[i] = floatgeom.Point4{}
+				out[i] = Point4{}
 			}
 		}
 	default:
-		out = make([]floatgeom.Point4, len(origIndices))
+		out = make([]Point4, len(origIndices))
 	}
 	return out
 }
 
-func RemapVec2(out *[]floatgeom.Point2, m []int) {
+func RemapVec2(out *[]Point2, m []int) {
 	if len(*out) == 0 {
 		return
 	}
 
-	old := make([]floatgeom.Point2, len(*out))
+	old := make([]Point2, len(*out))
 	copy(old, *out)
 	for i := 0; i < len(m); i++ {
 		if m[i] < len(old) {
 			*out = append(*out, old[m[i]])
 		} else {
-			*out = append(*out, floatgeom.Point2{})
+			*out = append(*out, Point2{})
 		}
 	}
 }
 
-func RemapVec3(out *[]floatgeom.Point3, m []int) {
+func RemapVec3(out *[]Point3, m []int) {
 	if len(*out) == 0 {
 		return
 	}
 
-	old := make([]floatgeom.Point3, len(*out))
+	old := make([]Point3, len(*out))
 	copy(old, *out)
 	for i := 0; i < len(m); i++ {
 		if m[i] < len(old) {
 			*out = append(*out, old[m[i]])
 		} else {
-			*out = append(*out, floatgeom.Point3{})
+			*out = append(*out, Point3{})
 		}
 	}
 }
 
-func RemapVec4(out *[]floatgeom.Point4, m []int) {
+func RemapVec4(out *[]Point4, m []int) {
 	if len(*out) == 0 {
 		return
 	}
 
-	old := make([]floatgeom.Point4, len(*out))
+	old := make([]Point4, len(*out))
 	copy(old, *out)
 	for i := 0; i < len(m); i++ {
 		if m[i] < len(old) {
 			*out = append(*out, old[m[i]])
 		} else {
-			*out = append(*out, floatgeom.Point4{})
+			*out = append(*out, Point4{})
 		}
 	}
 }

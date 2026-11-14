@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/oakmound/oak/v2/alg/floatgeom"
 )
 
 // CurveMode details how the values in the CurveNode should be interperted and used (translation,rotation,scale)
@@ -97,7 +95,7 @@ func (acn *AnimationCurveNode) Type() Type {
 	return ANIMATION_CURVE_NODE
 }
 
-func (acn *AnimationCurveNode) GetNodeLocalTransform(t float64) floatgeom.Point3 {
+func (acn *AnimationCurveNode) GetNodeLocalTransform(t float64) Point3 {
 	fbxTime := fbxTimetoStdTime(secondsToFbxTime(t))
 
 	getCoord := func(curve *Curve, fbxTime time.Duration) float32 {
@@ -124,7 +122,7 @@ func (acn *AnimationCurveNode) GetNodeLocalTransform(t float64) floatgeom.Point3
 		return values[0]
 	}
 
-	return floatgeom.Point3{
+	return Point3{
 		float64(getCoord(&acn.Curves[0], fbxTime)),
 		float64(getCoord(&acn.Curves[1], fbxTime)),
 		float64(getCoord(&acn.Curves[2], fbxTime)),

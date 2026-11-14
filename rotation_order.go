@@ -2,9 +2,6 @@ package ofbx
 
 import (
 	"math"
-
-	"github.com/oakmound/oak/v2/alg"
-	"github.com/oakmound/oak/v2/alg/floatgeom"
 )
 
 // RotationOrder determines the dimension order for rotation
@@ -43,8 +40,8 @@ func (o RotationOrder) String() string {
 	}
 }
 
-func (o RotationOrder) rotationMatrix(euler floatgeom.Point3) Matrix {
-	x, y, z := euler.X()*alg.DegToRad, euler.Y()*alg.DegToRad, euler.Z()*alg.DegToRad
+func (o RotationOrder) rotationMatrix(euler Point3) Matrix {
+	x, y, z := euler.X()*degToRad, euler.Y()*degToRad, euler.Z()*degToRad
 	a, b := math.Cos(x), math.Sin(x)
 	c, d := math.Cos(y), math.Sin(y)
 	e, f := math.Cos(z), math.Sin(z)
@@ -170,3 +167,6 @@ func (o RotationOrder) rotationMatrix(euler floatgeom.Point3) Matrix {
 
 	return te
 }
+
+// degToRad converts degrees to radians.
+const degToRad = math.Pi / 180

@@ -3,7 +3,6 @@ package ofbx
 import (
 	"testing"
 
-	"github.com/oakmound/oak/v2/alg/floatgeom"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -11,27 +10,27 @@ func TestRotationMatrix(t *testing.T) {
 	tests := []struct {
 		name  string
 		order RotationOrder
-		euler floatgeom.Point3
+		euler Point3
 	}{
 		{
 			name:  "EulerXYZ - Zero rotation",
 			order: EulerXYZ,
-			euler: floatgeom.Point3{0, 0, 0},
+			euler: Point3{0, 0, 0},
 		},
 		{
 			name:  "EulerXYZ - 90 degrees X",
 			order: EulerXYZ,
-			euler: floatgeom.Point3{90, 0, 0},
+			euler: Point3{90, 0, 0},
 		},
 		{
 			name:  "EulerXYZ - Combined rotation",
 			order: EulerXYZ,
-			euler: floatgeom.Point3{45, 30, 60},
+			euler: Point3{45, 30, 60},
 		},
 		{
 			name:  "EulerZYX - Combined rotation",
 			order: EulerZYX,
-			euler: floatgeom.Point3{45, 30, 60},
+			euler: Point3{45, 30, 60},
 		},
 	}
 
@@ -39,7 +38,7 @@ func TestRotationMatrix(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := tt.order.rotationMatrix(tt.euler)
 			assert.NotNil(t, result)
-			
+
 			// 验证是有效的旋转矩阵（行列式接近1）
 			det := result.m[0]*(result.m[5]*result.m[10]-result.m[6]*result.m[9]) -
 				result.m[1]*(result.m[4]*result.m[10]-result.m[6]*result.m[8]) +
@@ -50,7 +49,7 @@ func TestRotationMatrix(t *testing.T) {
 }
 
 func TestRotationMatrixAllOrders(t *testing.T) {
-	euler := floatgeom.Point3{30, 45, 60}
+	euler := Point3{30, 45, 60}
 
 	orders := []RotationOrder{
 		EulerXYZ, EulerXZY, EulerYZX, EulerYXZ, EulerZXY, EulerZYX, SphericXYZ,
@@ -84,7 +83,7 @@ func TestRotationOrderString(t *testing.T) {
 func TestRotationMatrixSphericXYZ(t *testing.T) {
 	// SphericXYZ目前不支持，应该被当作EulerXYZ处理
 	order := SphericXYZ
-	euler := floatgeom.Point3{45, 30, 60}
+	euler := Point3{45, 30, 60}
 
 	matrix := order.rotationMatrix(euler)
 	expected := EulerXYZ.rotationMatrix(euler)

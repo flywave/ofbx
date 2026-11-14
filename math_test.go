@@ -3,8 +3,6 @@ package ofbx
 import (
 	"math"
 	"testing"
-
-	"github.com/oakmound/oak/v2/alg/floatgeom"
 )
 
 func TestMatrixIdentity(t *testing.T) {
@@ -46,7 +44,7 @@ func TestMatrixTranspose(t *testing.T) {
 }
 
 func TestScalingMatrix(t *testing.T) {
-	scale := floatgeom.Point3{2, 3, 4}
+	scale := Point3{2, 3, 4}
 	scaling := ScalingMatrix(scale)
 
 	// Test scaling matrix
@@ -59,7 +57,7 @@ func TestScalingMatrix(t *testing.T) {
 }
 
 func TestTranslationMatrix(t *testing.T) {
-	translation := floatgeom.Point3{5, 6, 7}
+	translation := Point3{5, 6, 7}
 	trans := TranslationMatrix(translation)
 
 	// Test translation matrix
@@ -85,9 +83,9 @@ func TestRotationX(t *testing.T) {
 	}
 
 	// Test actual rotation
-	point := floatgeom.Point3{0, 1, 0}
+	point := Point3{0, 1, 0}
 	rotated := rot.MulPosition(point)
-	expectedPoint := floatgeom.Point3{0, 0, 1}
+	expectedPoint := Point3{0, 0, 1}
 
 	if math.Abs(rotated.X()-expectedPoint.X()) > tolerance ||
 		math.Abs(rotated.Y()-expectedPoint.Y()) > tolerance ||
@@ -110,9 +108,9 @@ func TestRotationY(t *testing.T) {
 	}
 
 	// Test actual rotation
-	point := floatgeom.Point3{1, 0, 0}
+	point := Point3{1, 0, 0}
 	rotated := rot.MulPosition(point)
-	expectedPoint := floatgeom.Point3{0, 0, -1}
+	expectedPoint := Point3{0, 0, -1}
 
 	if math.Abs(rotated.X()-expectedPoint.X()) > tolerance ||
 		math.Abs(rotated.Y()-expectedPoint.Y()) > tolerance ||
@@ -135,9 +133,9 @@ func TestRotationZ(t *testing.T) {
 	}
 
 	// Test actual rotation
-	point := floatgeom.Point3{1, 0, 0}
+	point := Point3{1, 0, 0}
 	rotated := rot.MulPosition(point)
-	expectedPoint := floatgeom.Point3{0, 1, 0}
+	expectedPoint := Point3{0, 1, 0}
 
 	if math.Abs(rotated.X()-expectedPoint.X()) > tolerance ||
 		math.Abs(rotated.Y()-expectedPoint.Y()) > tolerance ||
@@ -149,7 +147,7 @@ func TestRotationZ(t *testing.T) {
 func TestMulPosition(t *testing.T) {
 	// Test identity transformation
 	identity := makeIdentity()
-	point := floatgeom.Point3{1, 2, 3}
+	point := Point3{1, 2, 3}
 	transformed := identity.MulPosition(point)
 
 	if transformed != point {
@@ -157,9 +155,9 @@ func TestMulPosition(t *testing.T) {
 	}
 
 	// Test translation
-	trans := TranslationMatrix(floatgeom.Point3{10, 20, 30})
+	trans := TranslationMatrix(Point3{10, 20, 30})
 	transformed = trans.MulPosition(point)
-	expected := floatgeom.Point3{11, 22, 33}
+	expected := Point3{11, 22, 33}
 
 	tolerance := 1e-10
 	if math.Abs(transformed.X()-expected.X()) > tolerance ||
@@ -172,7 +170,7 @@ func TestMulPosition(t *testing.T) {
 func TestMulDirection(t *testing.T) {
 	// Test identity transformation for direction
 	identity := makeIdentity()
-	direction := floatgeom.Point3{1, 2, 3}
+	direction := Point3{1, 2, 3}
 	transformed := identity.MulDirection(direction)
 
 	// Direction should be normalized
@@ -187,7 +185,7 @@ func TestMulDirection(t *testing.T) {
 
 	// Test rotation preserves direction length (after normalization)
 	rot := RotationZ(math.Pi / 4) // 45 degrees
-	direction = floatgeom.Point3{1, 0, 0}
+	direction = Point3{1, 0, 0}
 	transformed = rot.MulDirection(direction)
 
 	length := math.Sqrt(transformed.X()*transformed.X() + transformed.Y()*transformed.Y() + transformed.Z()*transformed.Z())
@@ -198,7 +196,7 @@ func TestMulDirection(t *testing.T) {
 
 func TestRemoveScale(t *testing.T) {
 	// Create matrix with scale
-	scale := floatgeom.Point3{2, 3, 4}
+	scale := Point3{2, 3, 4}
 	rotation := RotationZ(math.Pi / 4)
 
 	// Combine scale and rotation
@@ -242,7 +240,7 @@ func TestMatrixFromSlice(t *testing.T) {
 
 func TestSetTranslation(t *testing.T) {
 	matrix := makeIdentity()
-	translation := floatgeom.Point3{10, 20, 30}
+	translation := Point3{10, 20, 30}
 
 	setTranslation(translation, &matrix)
 
@@ -289,9 +287,9 @@ func TestGetTriCountFromPoly(t *testing.T) {
 
 func TestComplexMatrixOperations(t *testing.T) {
 	// Test combined transformations
-	scale := floatgeom.Point3{2, 3, 4}
+	scale := Point3{2, 3, 4}
 	rotation := RotationZ(math.Pi / 2)
-	translation := TranslationMatrix(floatgeom.Point3{10, 20, 30})
+	translation := TranslationMatrix(Point3{10, 20, 30})
 
 	// Create combined transformation: translation * rotation * scale
 	// Note: In matrix multiplication, order matters (right to left)
@@ -300,12 +298,12 @@ func TestComplexMatrixOperations(t *testing.T) {
 	combined := translation.Mul(rotated)
 
 	// Test transformation
-	point := floatgeom.Point3{1, 0, 0}
+	point := Point3{1, 0, 0}
 	transformed := combined.MulPosition(point)
 
 	// Expected: scale by 2, rotate 90 degrees, then translate
 	// Original: (1, 0, 0) -> scale -> (2, 0, 0) -> rotate -> (0, 2, 0) -> translate -> (10, 22, 30)
-	expected := floatgeom.Point3{10, 22, 30}
+	expected := Point3{10, 22, 30}
 
 	tolerance := 1e-10
 	if math.Abs(transformed.X()-expected.X()) > tolerance ||
