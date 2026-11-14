@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // Edit-mode helpers: mutate objects of a loaded Scene in place (their element
@@ -370,4 +371,63 @@ func orDefault(s, def string) string {
 		return def
 	}
 	return s
+}
+
+// SetCurveKeys replaces an animation curve's keys in place, rewriting the
+// KeyTime and KeyValueFloat elements so a following SaveScene persists them.
+// AttrFlags/Data/RefCount children are rebuilt to match the new key count.
+func SetCurveKeys(curve *AnimationCurve, times []time.Duration, values []float32) error {
+	if curve == nil || curve.Element() == nil {
+		return errors.New("ofbx: curve has no element")
+	}
+	if len(times) != len(values) {
+		return fmt.Errorf("ofbx: %d times but %d values", len(times), len(values))
+	}
+	el := curve.Element()
+
+	keyTimes := make([]int64, len(times))
+	for i, t := range times {
+		keyTimes[i] = stdTimeToFbxTime(t)
+	}
+	timeProp, err := NewInt64ArrayProperty(keyTimes, false)
+	if err != nil {
+		return err
+	}
+	valueProp, err := NewFloatArrayProperty(values, false)
+	if err != nil {
+		return err
+	}
+	flags := repeatInt64(animationKeyAttrFlags, len(times))
+	flagsProp, err := NewInt64ArrayProperty(flags, false)
+	if err != nil {
+		return err
+	}
+	attrData := make([]float32, 9*len(times))
+	attrProp, err := NewFloatArrayProperty(attrData, false)
+	if err != nil {
+		return err
+	}
+	refCount := repeatInt64(1, len(times))
+	refProp, err := NewInt64ArrayProperty(refCount, false)
+	if err != nil {
+		return err
+	}
+
+	el.RemoveChild("KeyTime")
+	el.RemoveChild("KeyValueFloat")
+	el.RemoveChild("KeyAttrFlags")
+	el.RemoveChild("KeyAttrDataFloat")
+	el.RemoveChild("KeyAttrRefCount")
+	el.AddChildElement("KeyTime", timeProp)
+	el.AddChildElement("KeyValueFloat", valueProp)
+	el.AddChildElement("KeyAttrFlags", flagsProp)
+	el.AddChildElement("KeyAttrDataFloat", attrProp)
+	el.AddChildElement("KeyAttrRefCount", refProp)
+
+	curve.Times = append([]time.Duration(nil), times...)
+	curve.Values = append([]float32(nil), values...)
+	curve.AttrFlags = flags
+	curve.AttrData = attrData
+	curve.AttrRefCount = refCount
+	return nil
 }

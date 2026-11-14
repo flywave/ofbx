@@ -203,3 +203,32 @@ func TestAssimpAcceptsOurOutput(t *testing.T) {
 		})
 	}
 }
+
+// TestSetCurveKeys checks in-place animation key editing on a loaded scene.
+func TestSetCurveKeys(t *testing.T) {
+	doc := NewDocument()
+	mesh, err := doc.NewMesh("M", cubeVertices, cubeFaces)
+	require.NoError(t, err)
+	stack := doc.NewAnimationStack("Take", 0, stdTimeToFbxTime(time.Second))
+	layer := doc.NewAnimationLayer("L", stack)
+	curve, err := doc.NewAnimationCurve("c", []time.Duration{0, time.Second}, []float32{0, 1})
+	require.NoError(t, err)
+	_, err = doc.NewAnimationCurveNode("n", layer, mesh, "Lcl Translation", [3]*AnimationCurve{curve, nil, nil})
+	require.NoError(t, err)
+	scene := reloadDoc(t, doc)
+	require.Len(t, scene.AnimationStacks, 1)
+	cn := scene.AnimationStacks[0].Layers[0].CurveNodes[0]
+	curve2 := cn.Curves[0].Curve
+	require.NotNil(t, curve2)
+
+	newTimes := []time.Duration{0, 500 * time.Millisecond, 1500 * time.Millisecond}
+	newVals := []float32{0, 8, -2}
+	require.NoError(t, SetCurveKeys(curve2, newTimes, newVals))
+	reloaded := saveAndReload(t, scene)
+	rn := reloaded.AnimationStacks[0].Layers[0].CurveNodes[0]
+	rc := rn.Curves[0].Curve
+	require.Len(t, rc.Values, 3)
+	assert.Equal(t, []float32{0, 8, -2}, rc.Values)
+	assert.Len(t, rc.Times, 3)
+	assert.Error(t, SetCurveKeys(curve2, newTimes, newVals[:2]))
+}
