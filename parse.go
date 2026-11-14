@@ -180,6 +180,13 @@ func arrayPayload(property *Property) ([]byte, error) {
 func decodeInt64s(data []byte, elemSize int) []int64 {
 	ln := len(data) / elemSize
 	out := make([]int64, ln)
+	if elemSize <= 1 {
+		// bool/byte arrays widen each byte to one element
+		for i := 0; i < ln; i++ {
+			out[i] = int64(data[i])
+		}
+		return out
+	}
 	if elemSize == 4 {
 		for i := 0; i < ln; i++ {
 			out[i] = int64(int32(binary.LittleEndian.Uint32(data[i*4:])))
@@ -196,6 +203,12 @@ func decodeInt64s(data []byte, elemSize int) []int64 {
 func decodeFloat64s(data []byte, elemSize int) []float64 {
 	ln := len(data) / elemSize
 	out := make([]float64, ln)
+	if elemSize <= 1 {
+		for i := 0; i < ln; i++ {
+			out[i] = float64(data[i])
+		}
+		return out
+	}
 	if elemSize == 4 {
 		for i := 0; i < ln; i++ {
 			out[i] = float64(math.Float32frombits(binary.LittleEndian.Uint32(data[i*4:])))
@@ -212,6 +225,12 @@ func decodeFloat64s(data []byte, elemSize int) []float64 {
 func decodeFloat32s(data []byte, elemSize int) []float32 {
 	ln := len(data) / elemSize
 	out := make([]float32, ln)
+	if elemSize <= 1 {
+		for i := 0; i < ln; i++ {
+			out[i] = float32(data[i])
+		}
+		return out
+	}
 	if elemSize == 4 {
 		for i := 0; i < ln; i++ {
 			out[i] = math.Float32frombits(binary.LittleEndian.Uint32(data[i*4:]))

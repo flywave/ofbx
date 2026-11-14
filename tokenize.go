@@ -334,6 +334,12 @@ func tokenize(r io.Reader) (*Element, error) {
 		}
 
 		if child == nil {
+			// a valid FBX carries at least one top level element; matching
+			// the text tokenizer keeps empty inputs from round-tripping
+			// into files nothing can parse
+			if len(root.Children) == 0 {
+				return nil, errors.New("ofbx: no elements found in binary FBX input")
+			}
 			return root, nil
 		}
 		root.Children = append(root.Children, child)

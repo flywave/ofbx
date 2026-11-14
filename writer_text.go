@@ -50,12 +50,30 @@ func (tw *textWriter) indent(depth int) {
 	}
 }
 
+// textSafeID sanitizes an element id for the text dialect, whose tokens are
+// restricted to letters, digits and underscores. Byte soup names from
+// corrupt files would otherwise truncate tokens and produce unparseable
+// output; the sanitized id keeps the file loadable.
+func textSafeID(id string) string {
+	clean := make([]byte, len(id))
+	for i := 0; i < len(id); i++ {
+		b := id[i]
+		switch {
+		case b >= 'a' && b <= 'z', b >= 'A' && b <= 'Z', b >= '0' && b <= '9', b == '_':
+			clean[i] = b
+		default:
+			clean[i] = '_'
+		}
+	}
+	return string(clean)
+}
+
 func (tw *textWriter) writeElement(e *Element, depth int) error {
 	if e == nil || e.ID == nil {
 		return errors.New("ofbx: cannot encode element without ID")
 	}
 	tw.indent(depth)
-	tw.out.WriteString(e.IDString())
+	tw.out.WriteString(textSafeID(e.IDString()))
 	tw.out.WriteString(":")
 
 	for i, p := range e.Properties {

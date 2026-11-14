@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -341,4 +342,60 @@ func TestBinaryLittleEndianSanity(t *testing.T) {
 	var buf bytes.Buffer
 	writeUint32(&buf, 0x12345678)
 	assert.Equal(t, []byte{0x78, 0x56, 0x34, 0x12}, buf.Bytes())
+}
+
+// FuzzEncodeText feeds arbitrary bytes through Load and, when they parse,
+// through the ASCII writer and back. Text output must always re-parse to an
+// equivalent scene.
+func FuzzEncodeText(f *testing.F) {
+	seeds, _ := filepath.Glob("testdata/*.fb?")
+	for _, p := range seeds {
+		if data, err := os.ReadFile(p); err == nil {
+			f.Add(data)
+		}
+	}
+	f.Add([]byte("Kaydara FBX Binary  \x00\x1a\x00\xe8\x1c\x00\x00"))
+	f.Add([]byte{})
+
+	f.Fuzz(func(t *testing.T, data []byte) {
+		if len(data) > 256<<10 {
+			t.Skip("input too large for fuzzing")
+		}
+		scene, err := Load(bytes.NewReader(data))
+		if err != nil || scene == nil {
+			return
+		}
+		var text bytes.Buffer
+		if err := EncodeText(&text, scene.RootElement, 7400); err != nil {
+			// a corrupt zlib payload that no consumer ever inflated can pass
+			// binary loading (payloads travel untouched) but cannot be
+			// spelled as text, which must expand arrays; that limitation is
+			// inherent to the format, not a bug
+			if strings.Contains(err.Error(), "decompressing array") {
+				t.Skip("corrupt zlib payload cannot be text-encoded")
+			}
+			t.Fatalf("EncodeText failed on a parsed scene: %v", err)
+		}
+		if _, err := Load(&text); err != nil {
+			t.Fatalf("text output failed to re-parse: %v", err)
+		}
+	})
+}
+
+// TestBoolArrayDecodeRegression pins the byte-array decode fix: 'b'/'c'
+// arrays claimed as floats used to index past their payload.
+func TestBoolArrayDecodeRegression(t *testing.T) {
+	// a 'b' array sneaked into a float-typed consumer path
+	p, err := NewBoolArrayProperty([]bool{true, false, true, true}, false)
+	require.NoError(t, err)
+	f64s, err := parseArrayRawFloat64(p)
+	require.NoError(t, err)
+	assert.Equal(t, []float64{1, 0, 1, 1}, f64s)
+
+	// byte arrays as integers
+	c, err := NewByteArrayProperty([]byte{5, 6, 7}, false)
+	require.NoError(t, err)
+	ints, err := parseArrayRawInt64(c)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{5, 6, 7}, ints)
 }

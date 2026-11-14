@@ -93,6 +93,47 @@ func compareScenes(t *testing.T, a, b *Scene) {
 	if len(a.AnimationStacks) > 0 {
 		compareAnimations(t, a, b)
 	}
+
+	// newer object kinds
+	assert.Equal(t, len(a.Videos), len(b.Videos), "video count")
+	for i := range a.Videos {
+		assert.Equal(t, a.Videos[i].Filename, b.Videos[i].Filename, "video %d filename", i)
+		assert.Equal(t, a.Videos[i].Content, b.Videos[i].Content, "video %d content", i)
+	}
+	assert.Equal(t, len(a.Cameras), len(b.Cameras), "camera count")
+	assert.Equal(t, len(a.Lights), len(b.Lights), "light count")
+
+	totalShapes := func(s *Scene) int {
+		n := 0
+		for _, m := range s.Meshes {
+			if m.Geometry == nil {
+				continue
+			}
+			for _, bs := range m.Geometry.BlendShapes {
+				for _, ch := range bs.Channels {
+					n += len(ch.Shapes)
+				}
+			}
+		}
+		return n
+	}
+	assert.Equal(t, totalShapes(a), totalShapes(b), "blend shape count")
+
+	skinWeightSum := func(s *Scene) float64 {
+		sum := 0.0
+		for _, m := range s.Meshes {
+			if m.Geometry == nil || m.Geometry.Skin == nil {
+				continue
+			}
+			for _, c := range m.Geometry.Skin.Clusters {
+				for _, w := range c.Weights {
+					sum += w
+				}
+			}
+		}
+		return sum
+	}
+	assert.InDelta(t, skinWeightSum(a), skinWeightSum(b), 1e-6, "skin weight sum")
 }
 
 func compareAnimations(t *testing.T, a, b *Scene) {
