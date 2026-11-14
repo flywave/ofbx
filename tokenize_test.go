@@ -174,7 +174,8 @@ FBXHeaderExtension:  {
 
 	_, err := tokenize(bytes.NewReader(asciiData))
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Non-binary FBX")
+	assert.Contains(t, err.Error(), "ASCII")
+	assert.True(t, err == ErrASCII, "expected ErrASCII, got %v", err)
 }
 
 func TestTokenizeEmpty(t *testing.T) {

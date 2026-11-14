@@ -30,8 +30,15 @@ func (m *Mesh) Animations() []*AnimationStack {
 	animatableIds := map[uint64]bool{}
 	animatableIds[m.ID()] = true
 
+	if m.Geometry == nil || m.Geometry.Skin == nil {
+		return out
+	}
+
 	for _, cluster := range m.Geometry.Skin.Clusters {
 
+		if cluster.Link == nil {
+			continue
+		}
 		animatableIds[cluster.Link.ID()] = true
 
 	}
@@ -39,8 +46,10 @@ func (m *Mesh) Animations() []*AnimationStack {
 ANIMLOOP:
 	for _, a := range anims {
 		for _, l := range a.Layers {
-			fmt.Println("in Layer ", l.id)
 			for _, c := range l.CurveNodes {
+				if c.Bone == nil {
+					continue
+				}
 				if _, ok := animatableIds[c.Bone.ID()]; ok {
 					out = append(out, a)
 					continue ANIMLOOP

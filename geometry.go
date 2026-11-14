@@ -39,6 +39,9 @@ type Geometry struct {
 	Materials, oldVerts []int
 	newVerts            []Vertex
 	Faces               [][]int
+
+	// raw retains the source arrays for lossless write-back (see raw.go).
+	raw rawGeometry
 }
 
 func (g *Geometry) String() string {
@@ -268,10 +271,36 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 	}
 
 	geom.newVerts = make([]Vertex, len(geom.Vertices))
+	// vertices start unclaimed (index -1), matching the C++ original;
+	// otherwise every list gains a phantom head entry at index 0
+	for i := range geom.newVerts {
+		geom.newVerts[i].index = -1
+	}
 
 	for i := 0; i < len(geom.oldVerts); i++ {
 		old := geom.oldVerts[i]
 		geom.newVerts[old].add(i)
+	}
+
+	// retain the raw source arrays for lossless write-back
+	geom.raw.vertices = flattenPoint3s(vertices)
+	geom.raw.indices = origIndices
+
+	layerMappingStr := func(layerEl *Element) (mapping, reference string) {
+		if mp := findChildProperty(layerEl, "MappingInformationType"); len(mp) > 0 {
+			mapping = mp[0].value.String()
+		}
+		if rp := findChildProperty(layerEl, "ReferenceInformationType"); len(rp) > 0 {
+			reference = rp[0].value.String()
+		}
+		return mapping, reference
+	}
+	intsToInt64 := func(in []int) []int64 {
+		out := make([]int64, len(in))
+		for i, v := range in {
+			out[i] = int64(v)
+		}
+		return out
 	}
 
 	layerMaterialElements := findChildren(element, "LayerElementMaterial")
@@ -281,6 +310,9 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 		if len(mappingProp) == 0 || len(referenceProp) == 0 {
 			return nil, errors.New("invalid LayerElementMaterial")
 		}
+
+		matMapping, matReference := layerMappingStr(layerMaterialElements[0])
+		matLayer := rawLayer{kind: layerMaterial, mapping: matMapping, reference: matReference}
 
 		if mappingProp[0].value.String() == "ByPolygon" &&
 			referenceProp[0].value.String() == "IndexToDirect" {
@@ -298,6 +330,7 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 			if err != nil {
 				return nil, err
 			}
+			matLayer.dataI = intsToInt64(tmp)
 
 			tmpI := 0
 			triCt := 0
@@ -314,6 +347,7 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 				return nil, errors.New("mapping not supported")
 			}
 		}
+		geom.raw.layers = append(geom.raw.layers, matLayer)
 	}
 
 	for _, elem := range element.Children {
@@ -332,6 +366,17 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 			if len(tmp) > 0 {
 				//uvs = [4]floatgeom.Point2{} //resize(tmpIndices.empty() ? tmp.size() : tmpIndices.size());
 				geom.UVs[uvIdx] = splatVec2(mapping, tmp, tmpIndices, origIndices)
+
+				uvMapping, uvReference := layerMappingStr(elem)
+				uvLayer := rawLayer{kind: layerUV, set: uvIdx, mapping: uvMapping, reference: uvReference}
+				uvLayer.dataF = make([]float64, 0, 2*len(tmp))
+				for _, p := range tmp {
+					uvLayer.dataF = append(uvLayer.dataF, p.X(), p.Y())
+				}
+				if tmpIndices != nil {
+					uvLayer.indices = intsToInt64(tmpIndices)
+				}
+				geom.raw.layers = append(geom.raw.layers, uvLayer)
 			}
 		}
 
@@ -355,6 +400,17 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 		if len(tmp) > 0 {
 			geom.Tangents = splatVec3(mapping, tmp, tmpIndices, origIndices)
 			RemapVec3(&geom.Tangents, toOldIndices)
+
+			tanMapping, tanReference := layerMappingStr(layerTangentElems[0])
+			tanLayer := rawLayer{kind: layerTangent, mapping: tanMapping, reference: tanReference}
+			tanLayer.dataF = make([]float64, 0, 3*len(tmp))
+			for _, p := range tmp {
+				tanLayer.dataF = append(tanLayer.dataF, p.X(), p.Y(), p.Z())
+			}
+			if tmpIndices != nil {
+				tanLayer.indices = intsToInt64(tmpIndices)
+			}
+			geom.raw.layers = append(geom.raw.layers, tanLayer)
 		}
 	}
 
@@ -366,6 +422,17 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 		}
 		if len(tmp) > 0 {
 			geom.Colors = splatVec4(mapping, tmp, tmpIndices, origIndices)
+
+			colMapping, colReference := layerMappingStr(layerColorElems[0])
+			colLayer := rawLayer{kind: layerColor, mapping: colMapping, reference: colReference}
+			colLayer.dataF = make([]float64, 0, 4*len(tmp))
+			for _, p := range tmp {
+				colLayer.dataF = append(colLayer.dataF, p.W(), p.X(), p.Y(), p.Z())
+			}
+			if tmpIndices != nil {
+				colLayer.indices = intsToInt64(tmpIndices)
+			}
+			geom.raw.layers = append(geom.raw.layers, colLayer)
 		}
 	}
 
@@ -377,6 +444,17 @@ func parseGeometry(scene *Scene, element *Element) (*Geometry, error) {
 		}
 		if len(tmp) > 0 {
 			geom.Normals = splatVec3(mapping, tmp, tmpIndices, origIndices)
+
+			nrmMapping, nrmReference := layerMappingStr(layerNormalElems[0])
+			nrmLayer := rawLayer{kind: layerNormal, mapping: nrmMapping, reference: nrmReference}
+			nrmLayer.dataF = make([]float64, 0, 3*len(tmp))
+			for _, p := range tmp {
+				nrmLayer.dataF = append(nrmLayer.dataF, p.X(), p.Y(), p.Z())
+			}
+			if tmpIndices != nil {
+				nrmLayer.indices = intsToInt64(tmpIndices)
+			}
+			geom.raw.layers = append(geom.raw.layers, nrmLayer)
 		}
 	}
 

@@ -2,6 +2,7 @@ package ofbx
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/binary"
 	"io"
 	"strconv"
@@ -62,6 +63,19 @@ func (c *Cursor) readLongString() (string, error) {
 	}
 	//fmt.Print(" |S Prop had ", length, "|")
 	return string(byt), nil
+}
+
+// isBinaryFBX peeks at the buffered reader (without consuming bytes) and
+// discards the binary magic when present, reporting whether the stream is a
+// binary FBX file.
+func isBinaryFBX(br *bufio.Reader) bool {
+	magic := append([]byte("Kaydara FBX Binary  "), 0)
+	header, err := br.Peek(len(magic))
+	if err != nil || !bytes.Equal(magic, header) {
+		return false
+	}
+	br.Discard(len(magic))
+	return true
 }
 
 func (c *Cursor) readElementOffset(version uint16) (uint64, error) {
@@ -222,15 +236,18 @@ func (c *Cursor) readElement(version uint16) (*Element, error) {
 	return &element, nil
 }
 
+// ErrASCII is returned when the input is a text (ASCII) FBX file. Only
+// binary FBX is currently supported.
+var ErrASCII = errors.New("ofbx: text (ASCII) FBX files are not supported, re-export the file as binary FBX")
+
 func tokenize(r io.Reader) (*Element, error) {
 	countReader := NewCountReader(r)
 	r2 := bufio.NewReader(countReader)
 	cursor := &Cursor{r2, countReader}
 	//fmt.Println("initial stats: ", r2.Buffered(), cursor.ReadSoFar())
 
-	ok := isBinary(cursor)
-	if !ok {
-		return nil, errors.New("Non-binary FBX")
+	if !isBinaryFBX(r2) {
+		return nil, ErrASCII
 	}
 
 	var header Header

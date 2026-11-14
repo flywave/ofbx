@@ -70,7 +70,7 @@ func splatVec2(mapping VertexDataMapping, data []floatgeom.Point2, indices []int
 
 func splatVec3(mapping VertexDataMapping, data []floatgeom.Point3, indices []int, origIndices []int) (out []floatgeom.Point3) {
 	switch mapping {
-	case ByPolygonVertex:
+	case ByPolygonVertex, ByPolygon:
 		if len(indices) == 0 {
 			out = make([]floatgeom.Point3, len(data))
 			copy(out, data)
@@ -102,14 +102,14 @@ func splatVec3(mapping VertexDataMapping, data []floatgeom.Point3, indices []int
 			}
 		}
 	default:
-		panic("oh no")
+		out = make([]floatgeom.Point3, len(origIndices))
 	}
 	return out
 }
 
 func splatVec4(mapping VertexDataMapping, data []floatgeom.Point4, indices []int, origIndices []int) (out []floatgeom.Point4) {
 	switch mapping {
-	case ByPolygonVertex:
+	case ByPolygonVertex, ByPolygon:
 		if len(indices) == 0 {
 			out = make([]floatgeom.Point4, len(data))
 			copy(out, data)
@@ -141,7 +141,7 @@ func splatVec4(mapping VertexDataMapping, data []floatgeom.Point4, indices []int
 			}
 		}
 	default:
-		panic("oh no")
+		out = make([]floatgeom.Point4, len(origIndices))
 	}
 	return out
 }

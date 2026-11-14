@@ -28,7 +28,7 @@ FBXHeaderExtension:  {
 	scene, err := Load(reader)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "Non-binary FBX")
+	assert.True(t, err == ErrASCII, "expected ErrASCII, got %v", err)
 	assert.Nil(t, scene)
 }
 
